@@ -2,7 +2,7 @@
 terraform {
   required_providers {
     clo = {
-      version = "1.0.0"
+      version = "1.0.3"
       source = "terraform-provider-clo/clo"
     }
   }

@@ -11,8 +11,8 @@ Use the navigation to the left to read about the available resources.
 terraform {
   required_providers {
     clo = {
-      version = "1"
-      source = "terraform-provider-clo/clo"
+      version = "1.0.3"
+      source = "clo-ru/clo"
     }
   }
 }
