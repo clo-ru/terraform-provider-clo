@@ -27,4 +27,4 @@ $ make build
 
 Using the provider
 ----------------------
-Please see the documentation at [registry.terraform.io](https://registry.terraform.io/providers/terraform-provider-clo/clo/latest/docs).
+Please see the documentation at [registry.terraform.io](https://registry.terraform.io/providers/clo-ru/clo/latest/docs).
