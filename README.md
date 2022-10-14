@@ -1,7 +1,7 @@
 Terraform CLO Provider
 ============================
 
-Documentation: [registry.terraform.io](https://registry.terraform.io/providers/terraform-provider-clo/clo/latest/docs)
+Documentation: [registry.terraform.io](https://registry.terraform.io/providers/clo-ru/clo/latest/docs)
 
 Requirements
 ------------
@@ -15,7 +15,7 @@ Building The Provider
 Clone the repository
 
 ```sh
-$ git clone git@github.com:terraform-provider-clo/terraform-provider-clo.git
+$ git clone git@github.com:clo-ru/terraform-provider-clo.git
 ```
 
 Enter the provider directory and build the provider
@@ -24,7 +24,3 @@ Enter the provider directory and build the provider
 $ cd terraform-provider-clo
 $ make build
 ```
-
-Using the provider
-----------------------
-Please see the documentation at [registry.terraform.io](https://registry.terraform.io/providers/clo-ru/clo/latest/docs).
