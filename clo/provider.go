@@ -37,6 +37,8 @@ func Provider() *schema.Provider {
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"clo_projects":             dataSourceProjects(),
+			"clo_project_images":       dataSourceImages(),
+			"clo_project_image":        dataSourceImage(),
 			"clo_network_ip":           dataSourceIP(),
 			"clo_network_ips":          dataSourceIPs(),
 			"clo_disks_volume":         dataSourceVolume(),
