@@ -95,14 +95,14 @@ func resourceInstance() *schema.Resource {
 			"addresses": {
 				Description: "Addresses for the new instance",
 				Type:        schema.TypeList,
-				Optional:    true,
+				Required:    true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"external": {
 							Description: "Should the new address be the external one",
 							Type:        schema.TypeBool,
-							Required:    true,
 							ForceNew:    true,
+							Required:    true,
 						},
 						"version": {
 							Description: "Version of the new address. Could be `4` or `6`",

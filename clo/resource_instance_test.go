@@ -14,7 +14,6 @@ import (
 
 const (
 	serverName = "serv"
-	imageID    = "2dc56270-c4b6-4d2c-b238-8fa58f35634d"
 )
 
 func TestAccCloInstance_basic(t *testing.T) {
@@ -35,10 +34,15 @@ func TestAccCloInstance_basic(t *testing.T) {
 }
 
 func testAccCloInstanceBasic() string {
-	return fmt.Sprintf(`resource "clo_compute_instance" "%s" {
+	return fmt.Sprintf(`
+			data "clo_project_image" "ubuntu"{
+				project_id = "%s" 
+ 				name = "Ubuntu 20"
+			}
+			resource "clo_compute_instance" "%s" {
   				project_id = "%s" 
   				name = "%s"
-  				image_id = "%s"
+  				image_id = data.clo_project_image.ubuntu.image_id
   				flavor_ram = 4
   				flavor_vcpus = 2
   				block_device{
@@ -47,11 +51,11 @@ func testAccCloInstanceBasic() string {
    					storage_type = "volume"
   				}
   				addresses{
-   					version = 4
-   					external=true
-   					ddos_protection=false
+   						version = 4
+   						external=false
+   						ddos_protection=false
   				}
-	}`, serverName, os.Getenv("CLO_API_PROJECT_ID"), serverName, imageID)
+	}`, os.Getenv("CLO_API_PROJECT_ID"), serverName, os.Getenv("CLO_API_PROJECT_ID"), serverName)
 }
 
 func testAccCheckInstanceExists(n string, serverItem *servers.ServerDetailItem) resource.TestCheckFunc {

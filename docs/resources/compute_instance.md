@@ -39,6 +39,7 @@ resource "clo_compute_instance" "myserv" {
 ### Required
 
 - `block_device` (Block List, Min: 1) Disk data for the new instance (see [below for nested schema](#nestedblock--block_device))
+- `addresses` (Block List) Addresses for the new instance (see [below for nested schema](#nestedblock--addresses))
 - `flavor_ram` (Number) Amount of RAM of the new instance
 - `flavor_vcpus` (Number) Number of VCPU of the new instance
 - `image_id` (String) ID of the image that will be using
@@ -47,7 +48,6 @@ resource "clo_compute_instance" "myserv" {
 
 ### Optional
 
-- `addresses` (Block List) Addresses for the new instance (see [below for nested schema](#nestedblock--addresses))
 - `keypairs` (List of String) The list contains the SSH-keypairs IDs
 - `licenses` (Block List) The list contains licences that should be ordered with the instance (see [below for nested schema](#nestedblock--licenses))
 - `password` (String, Sensitive) Password for the new instance
