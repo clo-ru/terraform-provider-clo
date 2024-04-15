@@ -2,8 +2,8 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_storage "github.com/clo-ru/cloapi-go-client/services/storage"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"time"
@@ -49,7 +49,7 @@ func resourceS3UserKeysCreate(ctx context.Context, d *schema.ResourceData, m int
 	req := clo_storage.S3KeysResetRequest{
 		UserID: uId,
 	}
-	resp, e := req.Make(ctx, cli)
+	resp, e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
@@ -63,14 +63,14 @@ func resourceS3UserKeysRead(ctx context.Context, d *schema.ResourceData, m inter
 	req := clo_storage.S3KeysGetRequest{
 		UserID: uId,
 	}
-	resp, e := req.Make(ctx, cli)
+	resp, e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
-	return setKeysResult(d, resp.Result)
+	return setKeysResult(d, resp.Result[0])
 }
 
-func setKeysResult(d *schema.ResourceData, resp clo_storage.S3KeysResponse) diag.Diagnostics {
+func setKeysResult(d *schema.ResourceData, resp clo_storage.S3Key) diag.Diagnostics {
 	if e := d.Set("access_key", resp.AccessKey); e != nil {
 		return diag.FromErr(e)
 	}

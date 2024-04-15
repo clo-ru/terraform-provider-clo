@@ -2,9 +2,8 @@ package clo
 
 import (
 	"context"
-	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_project "github.com/clo-ru/cloapi-go-client/services/project"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_project "github.com/clo-ru/cloapi-go-client/v2/services/project"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -54,27 +53,26 @@ func dataSourceImageRead(ctx context.Context, d *schema.ResourceData, m interfac
 	req := clo_project.ImageListRequest{
 		ProjectID: d.Get("project_id").(string),
 	}
-	resp, e := req.Make(ctx, cli)
+	resp, e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
-	if resp.Code == 404 {
-		e = fmt.Errorf("NotFound returned")
-	}
 	n := d.Get("name").(string)
-	for _, r := range resp.Results {
+	for _, r := range resp.Result {
 		if r.Name == n {
 			if e := d.Set("image_id", r.ID); e != nil {
 				return diag.FromErr(e)
 			}
-			if e := d.Set("os_distribution", r.OperationSystem.Distribution); e != nil {
-				return diag.FromErr(e)
-			}
-			if e := d.Set("os_version", r.OperationSystem.Version); e != nil {
-				return diag.FromErr(e)
-			}
-			if e := d.Set("os_family", r.OperationSystem.OsFamily); e != nil {
-				return diag.FromErr(e)
+			if osSystem := r.OperationSystem; osSystem != nil {
+				if e := d.Set("os_distribution", osSystem.Distribution); e != nil {
+					return diag.FromErr(e)
+				}
+				if e := d.Set("os_version", osSystem.Version); e != nil {
+					return diag.FromErr(e)
+				}
+				if e := d.Set("os_family", osSystem.OsFamily); e != nil {
+					return diag.FromErr(e)
+				}
 			}
 			break
 		}

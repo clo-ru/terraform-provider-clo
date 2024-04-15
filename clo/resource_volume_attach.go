@@ -2,10 +2,9 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_disks "github.com/clo-ru/cloapi-go-client/services/disks"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_disks "github.com/clo-ru/cloapi-go-client/v2/services/disks"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"time"
 )
@@ -38,7 +37,6 @@ func resourceVolumeAttach() *schema.Resource {
 			"device": {
 				Description: "Represents the filesystem's device name, for example: `/dev/vdb`",
 				Type:        schema.TypeString, Computed: true},
-			"mount_point_base": {Type: schema.TypeString, Computed: true},
 		},
 	}
 }
@@ -49,40 +47,19 @@ func resourceVolumeAttachCreate(ctx context.Context, d *schema.ResourceData, m i
 	cli := m.(*clo_lib.ApiClient)
 	req := clo_disks.VolumeAttachRequest{
 		VolumeID: vid,
-		Body: clo_disks.VolumeAttachBody{
-			ServerID: sid,
-		},
+		Body:     clo_disks.VolumeAttachBody{ServerID: sid},
 	}
-	if n, ok := d.GetOk("mount_point_base"); ok {
-		req.Body.MountPath = n.(string)
-	}
-	resp, e := req.Make(ctx, cli)
+	e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
-	createStateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_disks.VolumeDetailRequest{VolumeID: vid}
-			resp, e := req.Make(ctx, cli)
-			if e != nil {
-				return resp, "", e
-			}
-			return resp, resp.Result.Status, nil
-		},
-		Delay:      10 * time.Second,
-		Timeout:    d.Timeout(schema.TimeoutCreate),
-		MinTimeout: 10 * time.Second,
-		Target:     []string{attachedVolume},
-		Pending:    []string{attachingVolume},
-	}
-	_, err := createStateConf.WaitForStateContext(ctx)
+
+	resp, err := waitVolumeState(ctx, vid, cli, []string{attachingVolume}, []string{attachedVolume}, d.Timeout(schema.TimeoutCreate))
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	if e := d.Set("device", resp.Result.Device); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("mount_point_base", resp.Result.Mountpoint); e != nil {
+
+	if e := d.Set("device", resp.Result.Attachment.Device); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(vid)
@@ -92,17 +69,17 @@ func resourceVolumeAttachCreate(ctx context.Context, d *schema.ResourceData, m i
 func resourceVolumeAttachRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	vid := d.Id()
 	cli := m.(*clo_lib.ApiClient)
-	req := clo_disks.VolumeDetailRequest{
-		VolumeID: vid,
-	}
-	resp, e := req.Make(ctx, cli)
+	req := clo_disks.VolumeDetailRequest{VolumeID: vid}
+	resp, e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("device", vid); e != nil {
-		return diag.FromErr(e)
+
+	device := ""
+	if resp.Result.Attachment != nil {
+		device = resp.Result.Attachment.ID
 	}
-	if e := d.Set("mount_point_base", resp.Result.CreatedIn); e != nil {
+	if e := d.Set("device", device); e != nil {
 		return diag.FromErr(e)
 	}
 	return nil
@@ -117,25 +94,10 @@ func resourceVolumeDetach(ctx context.Context, d *schema.ResourceData, m interfa
 			Force: true,
 		},
 	}
-	if e := req.Make(ctx, cli); e != nil {
+	if e := req.Do(ctx, cli); e != nil {
 		return diag.FromErr(e)
 	}
-	createStateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_disks.VolumeDetailRequest{VolumeID: d.Id()}
-			resp, e := req.Make(ctx, cli)
-			if e != nil {
-				return resp, "", e
-			}
-			return resp.Result, resp.Result.Status, nil
-		},
-		Target:     []string{activeVolume},
-		Pending:    []string{detachingVolume},
-		Delay:      10 * time.Second,
-		Timeout:    d.Timeout(schema.TimeoutCreate),
-		MinTimeout: 1 * time.Minute,
-	}
-	_, err := createStateConf.WaitForStateContext(ctx)
+	_, err := waitVolumeState(ctx, vid, cli, []string{detachingVolume}, []string{activeVolume}, d.Timeout(schema.TimeoutDelete))
 	if err != nil {
 		return diag.FromErr(err)
 	}

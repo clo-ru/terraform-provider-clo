@@ -2,9 +2,8 @@ package clo
 
 import (
 	"context"
-	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_storage "github.com/clo-ru/cloapi-go-client/services/storage"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
@@ -59,10 +58,8 @@ func dataSourceS3UserRead(ctx context.Context, d *schema.ResourceData, m interfa
 	req := clo_storage.S3UserDetailRequest{
 		UserID: d.Get("user_id").(string),
 	}
-	resp, e := req.Make(ctx, cli)
-	if resp.Code == 404 {
-		e = fmt.Errorf("NotFound returned")
-	}
+	resp, e := req.Do(ctx, cli)
+
 	if e != nil {
 		return diag.FromErr(e)
 	}
@@ -81,21 +78,27 @@ func dataSourceS3UserRead(ctx context.Context, d *schema.ResourceData, m interfa
 	if e := d.Set("canonical_name", resp.Result.CanonicalName); e != nil {
 		return diag.FromErr(e)
 	}
+
+	if e := d.Set("quotas", formatS3Quota(resp.Result.Quotas)); e != nil {
+		return diag.FromErr(e)
+	}
+	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
+	return diags
+}
+
+func formatS3Quota(quotas []clo_storage.QuotaInfo) []interface{} {
 	var quotaData []interface{}
-	ld := len(resp.Result.Quotas)
+	ld := len(quotas)
 	if ld > 0 {
 		quotaData = make([]interface{}, ld)
-		for j, q := range resp.Result.Quotas {
+		for j, q := range quotas {
 			quotaData[j] = map[string]interface{}{
 				"type":        q.Type,
 				"max_size":    q.MaxSize,
 				"max_objects": q.MaxObjects,
 			}
 		}
+		return quotaData
 	}
-	if e := d.Set("quotas", quotaData); e != nil {
-		return diag.FromErr(e)
-	}
-	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return make([]interface{}, 0)
 }

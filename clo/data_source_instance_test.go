@@ -9,7 +9,7 @@ import (
 
 const (
 	dsServerName = "serv"
-	dsImageID    = "2dc56270-c4b6-4d2c-b238-8fa58f35634d"
+	dsImageID    = "44262267-5f2e-4802-acc1-3939f7ae7b9c"
 )
 
 func TestAccCloInstanceDataSource(t *testing.T) {

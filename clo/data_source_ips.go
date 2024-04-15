@@ -2,8 +2,8 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_ip "github.com/clo-ru/cloapi-go-client/services/ip"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_ip "github.com/clo-ru/cloapi-go-client/v2/services/ip"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
@@ -33,9 +33,8 @@ func dataSourceIPs() *schema.Resource {
 							Description: "PTR of the address",
 							Type:        schema.TypeString, Computed: true},
 						"type": {
-							Description: "Type of the attached address. " +
-								"Might be one of: FLOATING, FIXED, FREE, VROUTER.",
-							Type: schema.TypeString, Computed: true},
+							Description: "Type of the attached address. Might be one of: FLOATING, FIXED, FREE, VROUTER.",
+							Type:        schema.TypeString, Computed: true},
 						"status": {Type: schema.TypeString, Computed: true},
 						"address": {
 							Description: "String representation of the address",
@@ -76,18 +75,18 @@ func dataSourceIPsRead(ctx context.Context, d *schema.ResourceData, m interface{
 	req := clo_ip.AddressListRequest{
 		ProjectID: d.Get("project_id").(string),
 	}
-	resp, e := req.Make(ctx, cli)
+	resp, e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("results", flattenIpsResults(resp.Results)); e != nil {
+	if e := d.Set("results", flattenIpsResults(resp.Result)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
 	return diags
 }
 
-func flattenIpsResults(pr []clo_ip.AddressDetail) []interface{} {
+func flattenIpsResults(pr []clo_ip.Address) []interface{} {
 	lpr := len(pr)
 	if lpr > 0 {
 		res := make([]interface{}, lpr, lpr)
@@ -101,12 +100,7 @@ func flattenIpsResults(pr []clo_ip.AddressDetail) []interface{} {
 			ri["created_in"] = p.CreatedIn
 			ri["is_primary"] = p.IsPrimary
 			ri["ddos_protection"] = p.DdosProtection
-			ri["attached_to"] = []interface{}{
-				map[string]interface{}{
-					"id":     p.AttachedTo.ID,
-					"entity": p.AttachedTo.Entity,
-				},
-			}
+			ri["attached_to"] = formatAttachedTo(p.AttachedTo)
 			res[i] = ri
 		}
 		return res

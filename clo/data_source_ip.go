@@ -2,8 +2,8 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_ip "github.com/clo-ru/cloapi-go-client/services/ip"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_ip "github.com/clo-ru/cloapi-go-client/v2/services/ip"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
@@ -64,7 +64,7 @@ func dataSourceIPRead(ctx context.Context, d *schema.ResourceData, m interface{}
 	req := clo_ip.AddressDetailRequest{
 		AddressID: d.Get("address_id").(string),
 	}
-	resp, e := req.Make(ctx, cli)
+	resp, e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
@@ -92,15 +92,18 @@ func dataSourceIPRead(ctx context.Context, d *schema.ResourceData, m interface{}
 	if e := d.Set("ddos_protection", resp.Result.DdosProtection); e != nil {
 		return diag.FromErr(e)
 	}
-	att := []interface{}{
-		map[string]interface{}{
-			"id":     resp.Result.AttachedTo.ID,
-			"entity": resp.Result.AttachedTo.Entity,
-		},
-	}
-	if e := d.Set("attached_to", att); e != nil {
+
+	if e := d.Set("attached_to", formatAttachedTo(resp.Result.AttachedTo)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
 	return diags
+}
+
+func formatAttachedTo(attach *clo_ip.AttachedToDetails) []interface{} {
+	att := make([]interface{}, 0)
+	if attach != nil {
+		att = append(att, map[string]interface{}{"id": attach.ID, "entity": attach.Entity})
+	}
+	return att
 }

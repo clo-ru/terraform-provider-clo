@@ -2,12 +2,13 @@ package clo
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_ip "github.com/clo-ru/cloapi-go-client/services/ip"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	cloTools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
+	clo_ip "github.com/clo-ru/cloapi-go-client/v2/services/ip"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"net/http"
 	"os"
 	"testing"
 )
@@ -18,7 +19,7 @@ const (
 )
 
 func TestAccCloIP_basic(t *testing.T) {
-	var ip = new(clo_ip.AddressDetail)
+	var ip = new(clo_ip.Address)
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccCloPreCheck(t) },
 		ProviderFactories: testAccProviders,
@@ -41,7 +42,7 @@ func testAccCloIPBasic() string {
 	}`, os.Getenv("CLO_API_PROJECT_ID"), ptr)
 }
 
-func testAccCheckIPExists(n string, ipItem *clo_ip.AddressDetail) resource.TestCheckFunc {
+func testAccCheckIPExists(n string, ipItem *clo_ip.Address) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		rs, ok := state.RootModule().Resources[n]
 		if !ok {
@@ -54,12 +55,9 @@ func testAccCheckIPExists(n string, ipItem *clo_ip.AddressDetail) resource.TestC
 		req := clo_ip.AddressDetailRequest{
 			AddressID: rs.Primary.ID,
 		}
-		resp, e := req.Make(context.Background(), cli)
+		resp, e := req.Do(context.Background(), cli)
 		if e != nil {
 			return e
-		}
-		if resp.Code != 200 {
-			return fmt.Errorf("http code 200 expected, got %s", http.StatusText(resp.Code))
 		}
 		*ipItem = resp.Result
 		return nil
@@ -72,16 +70,14 @@ func testAccCheckIPDestroy(st *terraform.State) error {
 		if rs.Type != "clo_network_ip" {
 			continue
 		}
-		req := clo_ip.AddressDetailRequest{
-			AddressID: rs.Primary.ID,
+		req := clo_ip.AddressDetailRequest{AddressID: rs.Primary.ID}
+		_, e := req.Do(context.Background(), cli)
+
+		apiError := cloTools.DefaultError{}
+		if errors.As(e, &apiError) && apiError.Code == 404 {
+			return nil
 		}
-		resp, e := req.Make(context.Background(), cli)
-		if e != nil {
-			return e
-		}
-		if resp.Code != 404 {
-			return fmt.Errorf("clo ip %s still exists", rs.Primary.ID)
-		}
+		return e
 	}
 	return nil
 }

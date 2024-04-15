@@ -2,12 +2,13 @@ package clo
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	"github.com/clo-ru/cloapi-go-client/services/disks"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	cloTools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
+	"github.com/clo-ru/cloapi-go-client/v2/services/disks"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"net/http"
 	"os"
 	"testing"
 )
@@ -17,7 +18,7 @@ const (
 )
 
 func TestAccCloVolume_basic(t *testing.T) {
-	var volume = new(disks.VolumeDetail)
+	var volume = new(disks.Volume)
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccCloPreCheck(t) },
 		ProviderFactories: testAccProviders,
@@ -41,7 +42,7 @@ func testAccCloVolumeBasic() string {
 	}`, volumeName, os.Getenv("CLO_API_PROJECT_ID"), volumeName)
 }
 
-func testAccCheckVolumeExists(n string, volumeItem *disks.VolumeDetail) resource.TestCheckFunc {
+func testAccCheckVolumeExists(n string, volumeItem *disks.Volume) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		rs, ok := state.RootModule().Resources[n]
 		if !ok {
@@ -51,15 +52,10 @@ func testAccCheckVolumeExists(n string, volumeItem *disks.VolumeDetail) resource
 			return fmt.Errorf("volume with ID is not set")
 		}
 		cli := testAccProvider.Meta().(*clo_lib.ApiClient)
-		req := disks.VolumeDetailRequest{
-			VolumeID: rs.Primary.ID,
-		}
-		resp, e := req.Make(context.Background(), cli)
+		req := disks.VolumeDetailRequest{VolumeID: rs.Primary.ID}
+		resp, e := req.Do(context.Background(), cli)
 		if e != nil {
 			return e
-		}
-		if resp.Code != 200 {
-			return fmt.Errorf("http code 200 expected, got %s", http.StatusText(resp.Code))
 		}
 		*volumeItem = resp.Result
 		return nil
@@ -72,16 +68,13 @@ func testAccCheckVolumeDestroy(st *terraform.State) error {
 		if rs.Type != "clo_disks_volume" {
 			continue
 		}
-		req := disks.VolumeDetailRequest{
-			VolumeID: rs.Primary.ID,
+		req := disks.VolumeDetailRequest{VolumeID: rs.Primary.ID}
+		_, e := req.Do(context.Background(), cli)
+		apiError := cloTools.DefaultError{}
+		if errors.As(e, &apiError) && apiError.Code == 404 {
+			return nil
 		}
-		resp, e := req.Make(context.Background(), cli)
-		if e != nil {
-			return e
-		}
-		if resp.Code != 404 {
-			return fmt.Errorf("clo volume %s still exists", rs.Primary.ID)
-		}
+		return e
 	}
 	return nil
 }

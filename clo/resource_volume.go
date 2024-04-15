@@ -2,13 +2,17 @@ package clo
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_disks "github.com/clo-ru/cloapi-go-client/services/disks"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_tools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
+	clo_disks "github.com/clo-ru/cloapi-go-client/v2/services/disks"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"log"
+	"strings"
 	"time"
 )
 
@@ -79,41 +83,11 @@ func resourceVolume() *schema.Resource {
 
 func resourceVolumeCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	cli := m.(*clo_lib.ApiClient)
-	req := clo_disks.VolumeCreateRequest{
-		ProjectID: d.Get("project_id").(string),
-		Body: clo_disks.VolumeCreateBody{
-			Size: d.Get("size").(int),
-		},
+	resp, err := createVolume(ctx, cli, d)
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	if n, ok := d.GetOk("name"); ok {
-		req.Body.Name = n.(string)
-	} else {
-		req.Body.Autorename = true
-	}
-	resp, e := req.Make(ctx, cli)
-	if resp.Code == 404 {
-		e = fmt.Errorf("NotFound returned")
-	}
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	createStateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_disks.VolumeDetailRequest{VolumeID: resp.Result.ID}
-			resp, e := req.Make(ctx, cli)
-			if e != nil {
-				return resp, "", e
-			} else {
-				return resp, resp.Result.Status, nil
-			}
-		},
-		Delay:      10 * time.Second,
-		Timeout:    d.Timeout(schema.TimeoutCreate),
-		MinTimeout: 10 * time.Second,
-		Target:     []string{activeVolume},
-		Pending:    []string{creatingVolume},
-	}
-	_, err := createStateConf.WaitForStateContext(ctx)
+	_, err = waitVolumeState(ctx, resp.Result.ID, cli, []string{creatingVolume}, []string{activeVolume}, d.Timeout(schema.TimeoutCreate))
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -123,33 +97,9 @@ func resourceVolumeCreate(ctx context.Context, d *schema.ResourceData, m interfa
 
 func resourceVolumeUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	cli := m.(*clo_lib.ApiClient)
-	stateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_disks.VolumeDetailRequest{VolumeID: d.Id()}
-			resp, e := req.Make(ctx, cli)
-			if e != nil {
-				return resp, "", e
-			} else {
-				return resp, resp.Result.Status, nil
-			}
-		},
-		Delay:      10 * time.Second,
-		Timeout:    d.Timeout(schema.TimeoutCreate),
-		MinTimeout: 1 * time.Minute,
-	}
 	if d.HasChange("size") {
 		_, c := d.GetChange("size")
-		req := clo_disks.VolumeResizeRequest{
-			VolumeID: d.Id(),
-			Body:     clo_disks.VolumeResizeBody{NewSize: c.(int)},
-		}
-		stateConf.Pending = []string{resizingVolume}
-		stateConf.Target = []string{activeVolume}
-		if e := req.Make(ctx, cli); e != nil {
-			return diag.FromErr(e)
-		}
-		_, err := stateConf.WaitForStateContext(ctx)
-		if err != nil {
+		if err := resizeVolume(ctx, cli, d, c.(int)); err != nil {
 			return diag.FromErr(err)
 		}
 	}
@@ -159,28 +109,10 @@ func resourceVolumeUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 func resourceVolumeDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	cli := m.(*clo_lib.ApiClient)
 	req := clo_disks.VolumeDeleteRequest{VolumeID: d.Id()}
-	if e := req.Make(ctx, cli); e != nil {
+	if e := req.Do(ctx, cli); e != nil {
 		return diag.FromErr(e)
 	}
-	createStateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_disks.VolumeDetailRequest{VolumeID: d.Id()}
-			resp, e := req.Make(ctx, cli)
-			if e != nil {
-				return resp, "", e
-			}
-			if resp.Code == 404 {
-				return resp.Result, deletedVolume, nil
-			}
-			return resp.Result, resp.Result.Status, nil
-		},
-		Target:     []string{deletedVolume},
-		Pending:    []string{deletingVolume},
-		Delay:      10 * time.Second,
-		Timeout:    d.Timeout(schema.TimeoutCreate),
-		MinTimeout: 1 * time.Minute,
-	}
-	_, err := createStateConf.WaitForStateContext(ctx)
+	err := waitVolumeDeleted(ctx, d.Id(), cli, d.Timeout(schema.TimeoutDelete))
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -193,7 +125,7 @@ func resourceVolumeRead(ctx context.Context, d *schema.ResourceData, m interface
 	req := clo_disks.VolumeDetailRequest{
 		VolumeID: vid,
 	}
-	resp, e := req.Make(ctx, cli)
+	resp, e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
@@ -207,4 +139,90 @@ func resourceVolumeRead(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(e)
 	}
 	return nil
+}
+
+// Waiters
+func waitVolumeState(ctx context.Context, id string, cli *clo_lib.ApiClient, pending []string, target []string, timeout time.Duration) (*clo_disks.VolumeDetailResponse, error) {
+	var resp *clo_disks.VolumeDetailResponse
+	createStateConf := resource.StateChangeConf{
+		Refresh: func() (result interface{}, state string, err error) {
+			req := clo_disks.VolumeDetailRequest{VolumeID: id}
+			resp, err = req.Do(ctx, cli)
+			resState := strings.ToUpper(resp.Result.Status)
+			return resp, resState, err
+		},
+		Pending:    pending,
+		Target:     target,
+		Delay:      10 * time.Second,
+		Timeout:    timeout,
+		MinTimeout: 30 * time.Second,
+	}
+	err := resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
+		_, err := createStateConf.WaitForStateContext(ctx)
+		if err != nil {
+			log.Printf("[DEBUG] Retrying after error: %s", err)
+			return &resource.RetryError{Err: err}
+		}
+		return nil
+	})
+	return resp, err
+}
+
+func waitVolumeDeleted(ctx context.Context, id string, cli *clo_lib.ApiClient, timeout time.Duration) error {
+	createStateConf := resource.StateChangeConf{
+		Refresh: func() (result interface{}, state string, err error) {
+			req := clo_disks.VolumeDetailRequest{VolumeID: id}
+			resp, err := req.Do(ctx, cli)
+
+			apiError := clo_tools.DefaultError{}
+			resState := resp.Result.Status
+			if errors.As(err, &apiError) && apiError.Code == 404 {
+				resState = deletedVolume
+				err = nil
+			}
+			resState = strings.ToUpper(resState)
+			return resp.Result, resState, err
+		},
+		Pending:    []string{deletingVolume},
+		Target:     []string{deletedVolume},
+		Delay:      10 * time.Second,
+		Timeout:    timeout,
+		MinTimeout: 30 * time.Second,
+	}
+	return resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
+		_, err := createStateConf.WaitForStateContext(ctx)
+		if err != nil {
+			log.Printf("[DEBUG] Retrying after error: %s", err)
+			return &resource.RetryError{Err: err}
+		}
+		return nil
+	})
+}
+
+// Api actions
+func createVolume(ctx context.Context, cli *clo_lib.ApiClient, d *schema.ResourceData) (*clo_lib.ResponseCreated, error) {
+	req := clo_disks.VolumeCreateRequest{
+		ProjectID: d.Get("project_id").(string),
+		Body: clo_disks.VolumeCreateBody{
+			Size: d.Get("size").(int),
+		},
+	}
+	if n, ok := d.GetOk("name"); ok {
+		req.Body.Name = n.(string)
+	} else {
+		req.Body.Autorename = true
+	}
+	return req.Do(ctx, cli)
+}
+
+func resizeVolume(ctx context.Context, cli *clo_lib.ApiClient, d *schema.ResourceData, size int) error {
+	req := clo_disks.VolumeResizeRequest{
+		VolumeID: d.Id(),
+		Body:     clo_disks.VolumeResizeBody{NewSize: size},
+	}
+	if err := req.Do(ctx, cli); err != nil {
+		return err
+	}
+	_, err := waitVolumeState(ctx, d.Id(), cli, []string{resizingVolume}, []string{activeVolume, attachedVolume}, d.Timeout(schema.TimeoutCreate))
+	return err
 }

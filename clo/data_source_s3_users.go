@@ -2,8 +2,8 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_storage "github.com/clo-ru/cloapi-go-client/services/storage"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
@@ -72,18 +72,18 @@ func dataSourceS3UsersRead(ctx context.Context, d *schema.ResourceData, m interf
 	req := clo_storage.S3UserListRequest{
 		ProjectID: d.Get("project_id").(string),
 	}
-	resp, e := req.Make(ctx, cli)
+	resp, e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("results", flattenS3UsersResults(resp.Results)); e != nil {
+	if e := d.Set("results", flattenS3UsersResults(resp.Result)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
 	return diags
 }
 
-func flattenS3UsersResults(pr []clo_storage.ResponseItem) []interface{} {
+func flattenS3UsersResults(pr []clo_storage.S3User) []interface{} {
 	lpr := len(pr)
 	if lpr > 0 {
 		res := make([]interface{}, lpr, lpr)
@@ -95,18 +95,7 @@ func flattenS3UsersResults(pr []clo_storage.ResponseItem) []interface{} {
 			ri["tenant"] = p.Tenant
 			ri["max_buckets"] = p.MaxBuckets
 			ri["canonical_name"] = p.CanonicalName
-			var diskData []interface{}
-			ld := len(p.Quotas)
-			if ld > 0 {
-				diskData = make([]interface{}, ld)
-				for j, q := range p.Quotas {
-					diskData[j] = map[string]interface{}{
-						"type":        q.Type,
-						"max_size":    q.MaxSize,
-						"max_objects": q.MaxObjects,
-					}
-				}
-			}
+			ri["quotas"] = formatS3Quota(p.Quotas)
 			res[i] = ri
 		}
 		return res

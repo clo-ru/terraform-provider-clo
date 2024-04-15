@@ -2,9 +2,8 @@ package clo
 
 import (
 	"context"
-	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_disks "github.com/clo-ru/cloapi-go-client/services/disks"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_disks "github.com/clo-ru/cloapi-go-client/v2/services/disks"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
@@ -65,21 +64,19 @@ func dataSourceVolumesRead(ctx context.Context, d *schema.ResourceData, m interf
 	req := clo_disks.VolumeListRequest{
 		ProjectID: d.Get("project_id").(string),
 	}
-	resp, e := req.Make(ctx, cli)
-	if resp.Code == 404 {
-		e = fmt.Errorf("NotFound returned")
-	}
+	resp, e := req.Do(ctx, cli)
+
 	if e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("results", flattenVolumesResults(resp.Results)); e != nil {
+	if e := d.Set("results", flattenVolumesResults(resp.Result)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
 	return diags
 }
 
-func flattenVolumesResults(pr []clo_disks.VolumeDetail) []interface{} {
+func flattenVolumesResults(pr []clo_disks.Volume) []interface{} {
 	lpr := len(pr)
 	if lpr > 0 {
 		res := make([]interface{}, lpr, lpr)
@@ -87,13 +84,18 @@ func flattenVolumesResults(pr []clo_disks.VolumeDetail) []interface{} {
 			ri := make(map[string]interface{})
 			ri["id"] = p.ID
 			ri["name"] = p.Name
-			ri["device"] = p.Device
+
 			ri["status"] = p.Status
 			ri["bootable"] = p.Bootable
 			ri["undetachable"] = p.Undetachable
 			ri["created_in"] = p.CreatedIn
 			ri["size"] = p.Size
-			ri["attached_to_instance_id"] = p.AttachedToServer.ID
+
+			if p.Attachment != nil {
+				ri["device"] = p.Attachment.Device
+				ri["attached_to_instance_id"] = p.Attachment.ID
+			}
+
 			res[i] = ri
 		}
 		return res

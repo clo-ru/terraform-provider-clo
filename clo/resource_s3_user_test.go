@@ -2,12 +2,13 @@ package clo
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	"github.com/clo-ru/cloapi-go-client/services/storage"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	cloTools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
+	"github.com/clo-ru/cloapi-go-client/v2/services/storage"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"net/http"
 	"os"
 	"testing"
 )
@@ -17,7 +18,7 @@ const (
 )
 
 func TestAccCloS3User_basic(t *testing.T) {
-	var s3User = new(storage.ResponseItem)
+	var s3User = new(storage.S3User)
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccCloPreCheck(t) },
 		ProviderFactories: testAccProviders,
@@ -42,7 +43,7 @@ func testAccCloS3UserBasic() string {
 	}`, userName, os.Getenv("CLO_API_PROJECT_ID"), userName)
 }
 
-func testAccCheckS3UserExists(n string, s3UserItem *storage.ResponseItem) resource.TestCheckFunc {
+func testAccCheckS3UserExists(n string, s3UserItem *storage.S3User) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		rs, ok := state.RootModule().Resources[n]
 		if !ok {
@@ -55,12 +56,9 @@ func testAccCheckS3UserExists(n string, s3UserItem *storage.ResponseItem) resour
 		req := storage.S3UserDetailRequest{
 			UserID: rs.Primary.ID,
 		}
-		resp, e := req.Make(context.Background(), cli)
+		resp, e := req.Do(context.Background(), cli)
 		if e != nil {
 			return e
-		}
-		if resp.Code != 200 {
-			return fmt.Errorf("http code 200 expected, got %s", http.StatusText(resp.Code))
 		}
 		*s3UserItem = resp.Result
 		return nil
@@ -76,13 +74,12 @@ func testAccCheckS3UserDestroy(st *terraform.State) error {
 		req := storage.S3UserDetailRequest{
 			UserID: rs.Primary.ID,
 		}
-		resp, e := req.Make(context.Background(), cli)
-		if e != nil {
-			return e
+		_, e := req.Do(context.Background(), cli)
+		apiError := cloTools.DefaultError{}
+		if errors.As(e, &apiError) && apiError.Code == 404 {
+			return nil
 		}
-		if resp.Code != 404 {
-			return fmt.Errorf("clo s3User %s still exists", rs.Primary.ID)
-		}
+		return e
 	}
 	return nil
 }

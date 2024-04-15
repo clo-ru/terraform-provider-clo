@@ -3,7 +3,7 @@ package clo
 import (
 	"context"
 	"errors"
-	"github.com/clo-ru/cloapi-go-client/clo"
+	"github.com/clo-ru/cloapi-go-client/v2/clo"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
