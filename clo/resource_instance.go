@@ -2,9 +2,10 @@ package clo
 
 import (
 	"context"
-	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_servers "github.com/clo-ru/cloapi-go-client/services/servers"
+	"errors"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_tools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
+	clo_servers "github.com/clo-ru/cloapi-go-client/v2/services/servers"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -14,6 +15,7 @@ import (
 
 const (
 	activeInstance   = "ACTIVE"
+	stoppedInstance  = "STOPPED"
 	creatingInstance = "BUILDING"
 	resizingInstance = "RESIZING"
 	deletingInstance = "DELETING"
@@ -22,7 +24,7 @@ const (
 
 func resourceInstance() *schema.Resource {
 	return &schema.Resource{
-		Description:   "Create a new instance in the project",
+		Description:   "Project compute instance",
 		ReadContext:   resourceInstanceRead,
 		CreateContext: resourceInstanceCreate,
 		UpdateContext: resourceInstanceUpdate,
@@ -110,7 +112,7 @@ func resourceInstance() *schema.Resource {
 							Required:    true,
 							ForceNew:    true,
 						},
-						"floatingip_id": {
+						"address_id": {
 							Description: "Use an existing IP with a provided ID",
 							Type:        schema.TypeString,
 							Optional:    true,
@@ -121,6 +123,11 @@ func resourceInstance() *schema.Resource {
 							Type:        schema.TypeBool,
 							Required:    true,
 							ForceNew:    true,
+						},
+						"bandwidth": {
+							Description: "Max address bandwidth, must be 100 or 1024",
+							Type:        schema.TypeInt,
+							Optional:    true,
 						},
 					},
 				},
@@ -170,83 +177,152 @@ func resourceInstance() *schema.Resource {
 	}
 }
 
+// Actions
+
 func resourceInstanceCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	cli := m.(*clo_lib.ApiClient)
 	pid := d.Get("project_id").(string)
-	sCreateBody := clo_servers.ServerCreateBody{
+
+	req := clo_servers.ServerCreateRequest{
+		Request:   clo_lib.Request{},
+		ProjectID: pid,
+		Body:      buildServerCreateBody(d),
+	}
+	resp, e := req.Do(ctx, cli)
+	if e != nil {
+		return diag.FromErr(e)
+	}
+
+	d.SetId(resp.Result.ID)
+
+	if err := waitInstanceState(ctx, resp.Result.ID, cli, []string{creatingInstance}, []string{activeInstance}, d.Timeout(schema.TimeoutCreate)); err != nil {
+		return diag.FromErr(e)
+	}
+
+	if e != nil {
+		return diag.FromErr(e)
+	}
+
+	if p, ok := d.GetOk("password"); ok {
+		if e := resetServerPassword(ctx, resp.Result.ID, p.(string), cli); e != nil {
+			return diag.FromErr(e)
+		}
+	}
+	return resourceInstanceRead(ctx, d, m)
+}
+func resourceInstanceUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	cli := m.(*clo_lib.ApiClient)
+	servID := d.Id()
+
+	if d.HasChanges("flavor_ram", "flavor_vcpus") {
+		_, ram := d.GetChange("flavor_ram")
+		_, vcpus := d.GetChange("flavor_vcpus")
+		if err := resizeServer(ctx, servID, vcpus.(int), ram.(int), cli, d); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
+	if d.HasChange("password") {
+		_, c := d.GetChange("password")
+		if err := resetServerPassword(ctx, servID, c.(string), cli); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+	return nil
+}
+
+func resourceInstanceRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	cli := m.(*clo_lib.ApiClient)
+	servID := d.Id()
+
+	resp, err := getServerDetails(ctx, servID, cli)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	if e := d.Set("id", resp.Result.ID); e != nil {
+		return diag.FromErr(e)
+	}
+	if e := d.Set("created_in", resp.Result.CreatedIn); e != nil {
+		return diag.FromErr(e)
+	}
+	if e := d.Set("status", resp.Result.Status); e != nil {
+		return diag.FromErr(e)
+	}
+	return nil
+}
+func resourceInstanceDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	servID := d.Id()
+	cli := m.(*clo_lib.ApiClient)
+
+	r, err := getServerDetails(ctx, servID, cli)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	req := clo_servers.ServerDeleteRequest{
+		ServerID: servID,
+		Body:     buildServerDeleteBody(&r.Result),
+	}
+
+	if err := req.Do(ctx, cli); err != nil {
+		return diag.FromErr(err)
+	}
+
+	if err := waitInstanceDeleted(ctx, servID, cli, d.Timeout(schema.TimeoutDelete)); err != nil {
+		return diag.FromErr(err)
+	}
+	return nil
+}
+
+// Helpers
+
+func buildServerDeleteBody(server *clo_servers.Server) clo_servers.ServerDeleteBody {
+	b := clo_servers.ServerDeleteBody{
+		DeleteAddresses: server.Addresses,
+	}
+
+	for _, d := range server.DiskData {
+		if d.StorageType == "volume" {
+			b.DeleteVolumes = append(b.DeleteVolumes, d.ID)
+		}
+	}
+	return b
+}
+
+func buildServerCreateBody(d *schema.ResourceData) clo_servers.ServerCreateBody {
+	return clo_servers.ServerCreateBody{
 		Name:  d.Get("name").(string),
 		Image: d.Get("image_id").(string),
 		Flavor: clo_servers.ServerFlavorBody{
 			Ram:   d.Get("flavor_ram").(int),
 			Vcpus: d.Get("flavor_vcpus").(int),
 		},
+		Recipe:    buildInstanceRecipeBody(d),
 		Storages:  buildInstanceStorageBody(d),
 		Addresses: buildInstanceAddrBody(d),
+		Licenses:  buildInstanceLicenseBody(d),
+		Keypairs:  buildInstanceKeypairsBody(d),
 	}
-	if _, ok := d.GetOk("licenses"); ok {
-		sCreateBody.Licenses = buildInstanceLicenseBody(d)
-	}
-	if rc, ok := d.GetOk("recipe_id"); ok {
-		sCreateBody.Recipe = rc.(string)
-	}
+}
+
+func buildInstanceKeypairsBody(d *schema.ResourceData) (keyPairs []string) {
 	if ks, ok := d.GetOk("keypairs"); ok {
 		kp := ks.([]interface{})
-		keyPairs := make([]string, len(kp))
-		for i, v := range kp {
-			keyPairs[i] = v.(string)
+		keyPairs = make([]string, len(kp))
+		for _, v := range kp {
+			keyPairs = append(keyPairs, v.(string))
 		}
-		sCreateBody.Keypairs = keyPairs
+		return
 	}
-	req := clo_servers.ServerCreateRequest{
-		Request:   clo_lib.Request{},
-		ProjectID: pid,
-		Body:      sCreateBody,
+	return
+}
+
+func buildInstanceRecipeBody(d *schema.ResourceData) string {
+	if rc, ok := d.GetOk("recipe_id"); ok {
+		return rc.(string)
 	}
-	resp, e := req.Make(ctx, cli)
-	if resp.Code == 404 {
-		e = fmt.Errorf("NotFound returned")
-	}
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	d.SetId(resp.Result.ID)
-	createStateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_servers.ServerDetailRequest{ServerID: resp.Result.ID}
-			resp, e := req.Make(ctx, cli)
-			if e != nil {
-				return resp, resp.Result.Status, e
-			} else {
-				return resp, resp.Result.Status, nil
-			}
-		},
-		Pending:    []string{creatingInstance},
-		Target:     []string{activeInstance},
-		Delay:      10 * time.Second,
-		Timeout:    d.Timeout(schema.TimeoutCreate),
-		MinTimeout: 30 * time.Second,
-	}
-	e = resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
-		_, err := createStateConf.WaitForStateContext(ctx)
-		if err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
-		}
-		return nil
-	})
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	if p, ok := d.GetOk("password"); ok {
-		req := clo_servers.ServerChangePasswdRequest{
-			ServerID: resp.Result.ID,
-			Body:     clo_servers.ServerChangePasswdBody{Password: p.(string)},
-		}
-		if e := req.Make(ctx, cli); e != nil {
-			return diag.FromErr(e)
-		}
-	}
-	return resourceInstanceRead(ctx, d, m)
+	return ""
 }
 
 func buildInstanceLicenseBody(d *schema.ResourceData) (sl []clo_servers.ServerLicenseBody) {
@@ -273,9 +349,9 @@ func buildInstanceLicenseBody(d *schema.ResourceData) (sl []clo_servers.ServerLi
 
 func buildInstanceStorageBody(d *schema.ResourceData) (ss []clo_servers.ServerStorageBody) {
 	if v, ok := d.GetOk("block_device"); ok {
-		vl := v.([]interface{})
+		vl := v.([]any)
 		for _, stor := range vl {
-			m := stor.(map[string]interface{})
+			m := stor.(map[string]any)
 			storBody := clo_servers.ServerStorageBody{
 				Bootable: false,
 			}
@@ -297,21 +373,24 @@ func buildInstanceStorageBody(d *schema.ResourceData) (ss []clo_servers.ServerSt
 
 func buildInstanceAddrBody(d *schema.ResourceData) (sa []clo_servers.ServerAddressesBody) {
 	if v, ok := d.GetOk("addresses"); ok {
-		vl := v.([]interface{})
+		vl := v.([]any)
 		for _, adr := range vl {
-			m := adr.(map[string]interface{})
+			m := adr.(map[string]any)
 			a := clo_servers.ServerAddressesBody{}
 			if v, ok := m["external"]; ok {
 				a.External = v.(bool)
 			}
-			if v, ok := m["floatingip_id"]; ok {
-				a.FloatingIpID = v.(string)
+			if v, ok := m["address_id"]; ok {
+				a.AddressId = v.(string)
 			}
 			if v, ok := m["version"]; ok {
 				a.Version = v.(int)
 			}
 			if v, ok := m["ddos_protection"]; ok {
 				a.DdosProtection = v.(bool)
+			}
+			if v, ok := m["bandwidth"]; ok {
+				a.MaxBandwidth = v.(int)
 			}
 			sa = append(sa, a)
 		}
@@ -320,118 +399,30 @@ func buildInstanceAddrBody(d *schema.ResourceData) (sa []clo_servers.ServerAddre
 	return
 }
 
-func resourceInstanceUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
-	servID := d.Id()
+// Waiters
+func waitInstanceDeleted(ctx context.Context, serverId string, cli *clo_lib.ApiClient, timeout time.Duration) error {
 	createStateConf := resource.StateChangeConf{
 		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_servers.ServerDetailRequest{ServerID: servID}
-			resp, e := req.Make(ctx, cli)
-			if e != nil {
-				return resp, "", e
-			} else {
-				return resp, resp.Result.Status, nil
-			}
-		},
-		Delay:      10 * time.Second,
-		Timeout:    d.Timeout(schema.TimeoutCreate),
-		MinTimeout: 1 * time.Minute,
-	}
-	if d.HasChanges("flavor_ram", "flavor_vcpus") {
-		createStateConf.Target = []string{activeInstance}
-		createStateConf.Pending = []string{resizingInstance}
-		req := clo_servers.ServerResizeRequest{
-			ServerID: servID,
-			Body: clo_servers.ServerResizeBody{
-				Ram:   d.Get("flavor_ram").(int),
-				Vcpus: d.Get("flavor_vcpus").(int),
-			},
-		}
-		if e := req.Make(ctx, cli); e != nil {
-			return diag.FromErr(e)
-		}
-		_, err := createStateConf.WaitForStateContext(ctx)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-	}
-	if d.HasChange("password") {
-		_, c := d.GetChange("password")
-		req := clo_servers.ServerChangePasswdRequest{
-			ServerID: servID,
-			Body:     clo_servers.ServerChangePasswdBody{Password: c.(string)},
-		}
-		if e := req.Make(ctx, cli); e != nil {
-			return diag.FromErr(e)
-		}
-	}
-	return nil
-}
+			req := clo_servers.ServerDetailRequest{ServerID: serverId}
+			resp, err := req.Do(ctx, cli)
 
-func resourceInstanceRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
-	servID := d.Id()
-	req := clo_servers.ServerDetailRequest{
-		ServerID: servID,
-	}
-	resp, e := req.Make(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("id", resp.Result.ID); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("created_in", resp.Result.CreatedIn); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("status", resp.Result.Status); e != nil {
-		return diag.FromErr(e)
-	}
-	return nil
-}
+			apiError := clo_tools.DefaultError{}
+			resState := resp.Result.Status
 
-func resourceInstanceDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	servID := d.Id()
-	cli := m.(*clo_lib.ApiClient)
-	r, e := getServerDetails(servID, cli)
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	b := clo_servers.ServerDeleteBody{}
-	for _, a := range r.Addresses {
-		b.DeleteAddresses = append(b.DeleteAddresses, a.ID)
-	}
-	for _, d := range r.DiskData {
-		if d.StorageType == "volume" {
-			b.DeleteVolumes = append(b.DeleteVolumes, d.ID)
-		}
-	}
-	req := clo_servers.ServerDeleteRequest{
-		ServerID: servID,
-		Body:     b,
-	}
-	if e = req.Make(ctx, cli); e != nil {
-		return diag.FromErr(e)
-	}
-	createStateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_servers.ServerDetailRequest{ServerID: servID}
-			resp, e := req.Make(ctx, cli)
-			if resp.Code == 404 {
-				return resp.Result, deletedInstance, nil
+			if errors.As(err, &apiError) && apiError.Code == 404 {
+				resState = deletedInstance
+				err = nil
 			}
-			if e != nil {
-				return resp, "", e
-			}
-			return resp.Result, resp.Result.Status, nil
+
+			return resp.Result, resState, err
 		},
 		Pending:    []string{deletingInstance},
 		Target:     []string{deletedInstance},
 		Delay:      10 * time.Second,
-		Timeout:    d.Timeout(schema.TimeoutCreate),
-		MinTimeout: 1 * time.Minute,
+		Timeout:    timeout,
+		MinTimeout: 30 * time.Second,
 	}
-	e = resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
+	return resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
 		_, err := createStateConf.WaitForStateContext(ctx)
 		if err != nil {
 			log.Printf("[DEBUG] Retrying after error: %s", err)
@@ -439,22 +430,56 @@ func resourceInstanceDelete(ctx context.Context, d *schema.ResourceData, m inter
 		}
 		return nil
 	})
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	return nil
 }
 
-func getServerDetails(id string, cli *clo_lib.ApiClient) (clo_servers.ServerDetailItem, error) {
-	req := clo_servers.ServerDetailRequest{
+func waitInstanceState(ctx context.Context, serverId string, cli *clo_lib.ApiClient, pending []string, target []string, timeout time.Duration) error {
+	createStateConf := resource.StateChangeConf{
+		Refresh: func() (result interface{}, state string, err error) {
+			req := clo_servers.ServerDetailRequest{ServerID: serverId}
+			resp, err := req.Do(ctx, cli)
+			return resp, resp.Result.Status, err
+		},
+		Pending:    pending,
+		Target:     target,
+		Delay:      10 * time.Second,
+		Timeout:    timeout,
+		MinTimeout: 30 * time.Second,
+	}
+	return resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
+		_, err := createStateConf.WaitForStateContext(ctx)
+		if err != nil {
+			log.Printf("[DEBUG] Retrying after error: %s", err)
+			return &resource.RetryError{Err: err}
+		}
+		return nil
+	})
+}
+
+// Api actions
+
+func getServerDetails(ctx context.Context, id string, cli *clo_lib.ApiClient) (*clo_servers.ServerDetailResponse, error) {
+	req := clo_servers.ServerDetailRequest{ServerID: id}
+	return req.Do(ctx, cli)
+}
+
+func resetServerPassword(ctx context.Context, id string, password string, cli *clo_lib.ApiClient) error {
+	req := clo_servers.ServerChangePasswdRequest{
+		ServerID: id, Body: clo_servers.ServerChangePasswdBody{Password: password},
+	}
+	return req.Do(ctx, cli)
+}
+
+func resizeServer(ctx context.Context, id string, vcpus int, ram int, cli *clo_lib.ApiClient, d *schema.ResourceData) error {
+	req := clo_servers.ServerResizeRequest{
+		Request:  clo_lib.Request{},
 		ServerID: id,
+		Body:     clo_servers.ServerResizeBody{Vcpus: vcpus, Ram: ram},
 	}
-	res, e := req.Make(context.Background(), cli)
-	if e != nil {
-		return clo_servers.ServerDetailItem{}, e
+	if err := req.Do(ctx, cli); err != nil {
+		return err
 	}
-	if res.Code == 404 {
-		e = fmt.Errorf("NotFound returned")
+	if err := waitInstanceState(ctx, id, cli, []string{resizingInstance}, []string{activeInstance, stoppedInstance}, d.Timeout(schema.TimeoutUpdate)); err != nil {
+		return err
 	}
-	return res.Result, nil
+	return nil
 }

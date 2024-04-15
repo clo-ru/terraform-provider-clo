@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/clo-ru/terraform-provider-clo/clo"
+	"github.com/clo-ru/terraform-provider-clo/v2/clo"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
 )

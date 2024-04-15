@@ -11,7 +11,6 @@ resource "clo_compute_instance" "myserv" {
   }
   addresses {
     version = 4
-    with_floating = true
     external = true
     ddos_protection = false
   }

@@ -2,8 +2,8 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_project "github.com/clo-ru/cloapi-go-client/services/project"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_project "github.com/clo-ru/cloapi-go-client/v2/services/project"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
@@ -48,18 +48,19 @@ func dataSourceProjectsRead(ctx context.Context, d *schema.ResourceData, m inter
 	var diags diag.Diagnostics
 	cli := m.(*clo_lib.ApiClient)
 	req := clo_project.ProjectListRequest{}
-	resp, e := req.Make(ctx, cli)
+	resp, e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("results", flattenProjectResults(resp.Results)); e != nil {
+
+	if e := d.Set("results", flattenProjectResults(resp.Result)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
 	return diags
 }
 
-func flattenProjectResults(pr []clo_project.ProjectListItem) []interface{} {
+func flattenProjectResults(pr []clo_project.Project) []interface{} {
 	lpr := len(pr)
 	if lpr > 0 {
 		res := make([]interface{}, lpr, lpr)

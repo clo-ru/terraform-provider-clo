@@ -2,9 +2,8 @@ package clo
 
 import (
 	"context"
-	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/clo"
-	clo_project "github.com/clo-ru/cloapi-go-client/services/project"
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	clo_project "github.com/clo-ru/cloapi-go-client/v2/services/project"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
@@ -65,25 +64,22 @@ func dataSourceImagesRead(ctx context.Context, d *schema.ResourceData, m interfa
 	req := clo_project.ImageListRequest{
 		ProjectID: d.Get("project_id").(string),
 	}
-	resp, e := req.Make(ctx, cli)
+	resp, e := req.Do(ctx, cli)
 	if e != nil {
 		return diag.FromErr(e)
 	}
-	if resp.Code == 404 {
-		e = fmt.Errorf("NotFound returned")
-	}
 	var res []interface{}
-	lr := len(resp.Results)
+	lr := len(resp.Result)
 	if lr > 0 {
 		res = make([]interface{}, lr)
-		for i, r := range resp.Results {
-			res[i] = map[string]interface{}{
-				"id":              r.ID,
-				"name":            r.Name,
-				"os_family":       r.OperationSystem.OsFamily,
-				"os_version":      r.OperationSystem.Version,
-				"os_distribution": r.OperationSystem.Distribution,
+		for i, r := range resp.Result {
+			m := map[string]interface{}{"id": r.ID, "name": r.Name}
+			if osSystem := r.OperationSystem; osSystem != nil {
+				m["os_family"] = r.OperationSystem.OsFamily
+				m["os_version"] = r.OperationSystem.Version
+				m["os_distribution"] = r.OperationSystem.Distribution
 			}
+			res[i] = m
 		}
 	}
 	if e := d.Set("results", res); e != nil {
