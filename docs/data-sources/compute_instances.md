@@ -49,7 +49,7 @@ Read-Only:
 
 
 <a id="nestedobjatt--results--disk_data"></a>
-### Nested Schema for `results.disk_data`
+### Nested Schema for `result.disk_data`
 
 Read-Only:
 

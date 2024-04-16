@@ -46,7 +46,7 @@ Read-Only:
 - `type` (String)
 
 <a id="nestedobjatt--results--attached_to"></a>
-### Nested Schema for `results.attached_to`
+### Nested Schema for `result.attached_to`
 
 Read-Only:
 
