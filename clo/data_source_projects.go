@@ -53,7 +53,7 @@ func dataSourceProjectsRead(ctx context.Context, d *schema.ResourceData, m inter
 		return diag.FromErr(e)
 	}
 
-	if e := d.Set("results", flattenProjectResults(resp.Result)); e != nil {
+	if e := d.Set("result", flattenProjectResults(resp.Result)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
