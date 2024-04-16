@@ -20,7 +20,7 @@ func dataSourceVolumes() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 			},
-			"results": {
+			"result": {
 				Description: "The object that holds the results",
 				Type:        schema.TypeList,
 				Computed:    true,
@@ -69,7 +69,7 @@ func dataSourceVolumesRead(ctx context.Context, d *schema.ResourceData, m interf
 	if e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("results", flattenVolumesResults(resp.Result)); e != nil {
+	if e := d.Set("result", flattenVolumesResults(resp.Result)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))

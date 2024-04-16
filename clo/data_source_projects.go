@@ -15,7 +15,7 @@ func dataSourceProjects() *schema.Resource {
 		Description: "Fetches the list of the projects",
 		ReadContext: dataSourceProjectsRead,
 		Schema: map[string]*schema.Schema{
-			"results": {
+			"result": {
 				Description: "The object that holds the results",
 				Type:        schema.TypeList,
 				Computed:    true,

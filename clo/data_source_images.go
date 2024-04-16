@@ -20,7 +20,7 @@ func dataSourceImages() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 			},
-			"results": {
+			"result": {
 				Type:        schema.TypeList,
 				Description: "The object that holds the results",
 				Computed:    true,
@@ -82,7 +82,7 @@ func dataSourceImagesRead(ctx context.Context, d *schema.ResourceData, m interfa
 			res[i] = m
 		}
 	}
-	if e := d.Set("results", res); e != nil {
+	if e := d.Set("result", res); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
