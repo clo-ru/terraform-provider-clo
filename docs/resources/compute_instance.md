@@ -81,7 +81,7 @@ Required:
 
 Optional:
 
-- `floatingip_id` (String) Use an existing IP with a provided ID
+- `address_id` (String) Use an existing IP with a provided ID
 
 
 <a id="nestedblock--licenses"></a>

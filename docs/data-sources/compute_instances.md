@@ -35,31 +35,17 @@ data "clo_compute_instances" "all_instances" {
 
 Read-Only:
 
-- `addresses` (List of Object) (see [below for nested schema](#nestedobjatt--results--addresses))
+- `addresses` (List of String)
 - `created_in` (String)
 - `disk_data` (List of Object) (see [below for nested schema](#nestedobjatt--results--disk_data))
 - `flavor_ram` (Number)
 - `flavor_vcpus` (Number)
 - `id` (String)
-- `image_id` (String)
+- `image` (String)
 - `name` (String)
-- `recipe_id` (String)
+- `recipe` (String)
 - `rescue_mode` (String)
 - `status` (String)
-
-<a id="nestedobjatt--results--addresses"></a>
-### Nested Schema for `results.addresses`
-
-Read-Only:
-
-- `ddos_protection` (Boolean)
-- `external` (Boolean)
-- `id` (String)
-- `macaddr` (String)
-- `name` (String)
-- `ptr` (String)
-- `type` (String)
-- `version` (Number)
 
 
 <a id="nestedobjatt--results--disk_data"></a>
