@@ -32,7 +32,6 @@ data "clo_disks_volume" "volume_1" {
 - `created_in` (String) Timestamp the volume was created
 - `description` (String)
 - `device` (String) Represents the filesystem's device name, for example: `/dev/vdb`
-- `id` (String) The ID of this resource.
 - `name` (String) Human-readable name of the volume
 - `size` (Number) Size of the volume in Gb
 - `status` (String)

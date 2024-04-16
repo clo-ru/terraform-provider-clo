@@ -29,7 +29,6 @@ resource "clo_network_ip" "fip_1" {
 ### Optional
 
 - `ddos_protection` (Boolean) Should the address be protected from DDoS
-- `primary` (String) Should the address be used as primary
 - `ptr` (String) PTR of the attached address
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 
@@ -39,6 +38,7 @@ resource "clo_network_ip" "fip_1" {
 - `created_in` (String) Timestamp the address was created
 - `id` (String) ID of the created address
 - `status` (String)
+- `is_primary` (String) Address used as primary
 
 <a id="nestedblock--timeouts"></a>
 ### Nested Schema for `timeouts`

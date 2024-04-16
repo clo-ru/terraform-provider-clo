@@ -43,11 +43,10 @@ func resourceIp() *schema.Resource {
 			"is_primary": {
 				Description: "Should the address be used as primary",
 				Type:        schema.TypeBool,
-				Optional:    true,
 				Computed:    true,
 			},
 			"bandwidth": {
-				Description: "Should the address be used as primary",
+				Description: "Maximum address bandwidth on mbps",
 				Type:        schema.TypeInt,
 				Optional:    false,
 				Computed:    true,

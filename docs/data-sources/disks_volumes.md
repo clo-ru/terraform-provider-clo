@@ -39,7 +39,6 @@ Read-Only:
 - `bootable` (Boolean)
 - `created_in` (String)
 - `device` (String)
-- `id` (String)
 - `name` (String)
 - `size` (Number)
 - `status` (String)

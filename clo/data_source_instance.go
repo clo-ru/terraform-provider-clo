@@ -29,7 +29,7 @@ func dataSourceInstance() *schema.Resource {
 				Type:        schema.TypeString, Computed: true},
 			"recipe": {
 				Description: "ID of the recipe that was installed on the instance",
-				Type:        schema.TypeString, Optional: true},
+				Type:        schema.TypeString, Computed: true},
 			"status": {
 				Description: "Current status of the instance",
 				Type:        schema.TypeString, Computed: true},

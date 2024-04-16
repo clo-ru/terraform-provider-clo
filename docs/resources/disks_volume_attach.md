@@ -35,7 +35,6 @@ resource "clo_disks_volume_attach" "v_att" {
 
 - `device` (String) Represents the filesystem's device name, for example: `/dev/vdb`
 - `id` (String) The ID of this resource.
-- `mount_point_base` (String)
 
 <a id="nestedblock--timeouts"></a>
 ### Nested Schema for `timeouts`
