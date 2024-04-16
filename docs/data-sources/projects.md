@@ -22,7 +22,7 @@ data "clo_projects" "all_projects" {}
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-- `results` (List of Object) The object that holds the results (see [below for nested schema](#nestedatt--result))
+- `result` (List of Object) The object that holds the results (see [below for nested schema](#nestedatt--result))
 
 <a id="nestedatt--results"></a>
 ### Nested Schema for `result`
