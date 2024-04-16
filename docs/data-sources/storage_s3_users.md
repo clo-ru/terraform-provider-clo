@@ -28,10 +28,10 @@ data "clo_storage_s3_users" "all_s3users" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-- `results` (List of Object) The object that holds the results (see [below for nested schema](#nestedatt--results))
+- `result` (List of Object) The object that holds the results (see [below for nested schema](#nestedatt--result))
 
 <a id="nestedatt--results"></a>
-### Nested Schema for `results`
+### Nested Schema for `result`
 
 Read-Only:
 

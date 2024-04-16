@@ -28,10 +28,10 @@ data "clo_compute_instances" "all_instances" {
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-- `results` (List of Object) The object that holds the results (see [below for nested schema](#nestedatt--results))
+- `result` (List of Object) The object that holds the results (see [below for nested schema](#nestedatt--result))
 
-<a id="nestedatt--results"></a>
-### Nested Schema for `results`
+<a id="nestedatt--result"></a>
+### Nested Schema for `result`
 
 Read-Only:
 
