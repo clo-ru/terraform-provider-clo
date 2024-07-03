@@ -6,6 +6,7 @@ import (
 	"github.com/clo-ru/cloapi-go-client/v2/services/disks"
 	"github.com/clo-ru/cloapi-go-client/v2/services/ip"
 	"github.com/clo-ru/cloapi-go-client/v2/services/servers"
+	"github.com/clo-ru/cloapi-go-client/v2/services/ssh-keys"
 	"github.com/clo-ru/cloapi-go-client/v2/services/storage"
 	"github.com/google/uuid"
 	"os"
@@ -162,4 +163,34 @@ func destroyTestS3User(id string, cli *clo_lib.ApiClient) error {
 		return err
 	}
 	return waitS3UserDeleted(context.Background(), id, cli, 10*time.Minute)
+}
+
+// keypair
+func buildTestKeypair(cli *clo_lib.ApiClient, t *testing.T) (string, error) {
+	testName := strings.ReplaceAll(uuid.NewString(), "-", "")
+	req := sshkeys.KeyPairCreateRequest{
+		ProjectID: getTestProject(),
+		Body: sshkeys.KeyPairCreateBody{
+			testName,
+			"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDptRaDWlcd/LHGOTmtc3/hetEacftO2wPjLxahl/el7L32B3Nw1ATOYnsL+hHd4Acx7BVJd7j6ciwE5MYxiCvynGp3TrXVlcqUjW6SBfZNlFy2mgCIW70wfIN1usXQDuNAUbfdyF5qaQxWN38WL8CsoO3DBU2oGgeJko9CdLtEaxU7QJEfcKIq6sBeLmpB+TELJpnaACxUF7aq1V/YPx+wZFZeqnlf0V5blQ/Yo+bBncFChP8xjmmu5ckfuiNHfEWBq+RYFytWt03mC/eB0K+b8IQlcaYSh58jVExTlBmjaizqOT1j8Ahc3RewOgALez7//+c3HI+z9ryrOOymZC3B",
+		},
+	}
+	res, err := req.Do(context.Background(), cli)
+	if err != nil {
+		return "", err
+	}
+
+	t.Cleanup(func() {
+		t.Logf("Cleanup test keypair %s", res.Result.ID)
+		if err := destroyTestKeypair(res.Result.ID, cli); err != nil {
+			t.Log("Error on cleanup keypair ", err)
+		}
+	})
+
+	return res.Result.ID, nil
+}
+
+func destroyTestKeypair(id string, cli *clo_lib.ApiClient) error {
+	req := sshkeys.KeyPairDeleteRequest{KeypairID: id}
+	return req.Do(context.Background(), cli)
 }

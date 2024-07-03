@@ -15,18 +15,19 @@ import (
 
 const (
 	serverName = "serv"
-	imageID    = "44262267-5f2e-4802-acc1-3939f7ae7b9c"
+	imageID    = "e96961dd-f038-4726-9330-ad5468ab5a3b"
 )
 
 func TestAccCloInstance_basic(t *testing.T) {
 	var server = new(servers.Server)
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccCloPreCheck(t) },
 		ProviderFactories: testAccProviders,
 		CheckDestroy:      testAccCheckInstanceDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloInstanceBasic(),
+				Config: testAccCloInstanceBasicConf(),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckInstanceExists(fmt.Sprintf("clo_compute_instance.%s", serverName), server),
 				),
@@ -35,7 +36,56 @@ func TestAccCloInstance_basic(t *testing.T) {
 	})
 }
 
-func testAccCloInstanceBasic() string {
+func TestAccCloInstance_withKeypair(t *testing.T) {
+	cli, err := getTestClient()
+	if err != nil {
+		t.Error("Error get test client ", err)
+	}
+
+	var server = new(servers.Server)
+	keypair, err := buildTestKeypair(cli, t)
+	if err != nil {
+		t.Error("Error get test client ", err)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:          func() { testAccCloPreCheck(t) },
+		ProviderFactories: testAccProviders,
+		CheckDestroy:      testAccCheckInstanceDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloInstanceWithKeypairConf(keypair),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckInstanceExists(fmt.Sprintf("clo_compute_instance.%s", serverName), server),
+				),
+			},
+		},
+	})
+}
+
+func testAccCloInstanceWithKeypairConf(keypair string) string {
+	return fmt.Sprintf(
+		`resource "clo_compute_instance" "%s" {
+  				project_id = "%s" 
+  				name = "%s"
+  				image_id = "%s"
+  				flavor_ram = 4
+  				flavor_vcpus = 2
+  				block_device{
+   					size = 40
+   					bootable=true
+   					storage_type = "volume"
+  				}
+  				addresses{
+   					version = 4
+   					external=true
+   					ddos_protection=false
+  				}
+				keypairs = ["%s"]
+	}`, serverName, os.Getenv("CLO_API_PROJECT_ID"), serverName, imageID, keypair)
+}
+
+func testAccCloInstanceBasicConf() string {
 	return fmt.Sprintf(
 		`resource "clo_compute_instance" "%s" {
   				project_id = "%s" 

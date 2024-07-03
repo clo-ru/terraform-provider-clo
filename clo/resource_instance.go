@@ -199,10 +199,6 @@ func resourceInstanceCreate(ctx context.Context, d *schema.ResourceData, m inter
 		return diag.FromErr(e)
 	}
 
-	if e != nil {
-		return diag.FromErr(e)
-	}
-
 	if p, ok := d.GetOk("password"); ok {
 		if e := resetServerPassword(ctx, resp.Result.ID, p.(string), cli); e != nil {
 			return diag.FromErr(e)
@@ -310,8 +306,8 @@ func buildInstanceKeypairsBody(d *schema.ResourceData) (keyPairs []string) {
 	if ks, ok := d.GetOk("keypairs"); ok {
 		kp := ks.([]interface{})
 		keyPairs = make([]string, len(kp))
-		for _, v := range kp {
-			keyPairs = append(keyPairs, v.(string))
+		for i, v := range kp {
+			keyPairs[i] = v.(string)
 		}
 		return
 	}
