@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
+	"time"
+
 	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
 	clo_tools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
 	clo_disks "github.com/clo-ru/cloapi-go-client/v2/services/disks"
@@ -11,9 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"log"
-	"strings"
-	"time"
 )
 
 const (
@@ -82,7 +83,7 @@ func resourceVolume() *schema.Resource {
 }
 
 func resourceVolumeCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	resp, err := createVolume(ctx, cli, d)
 	if err != nil {
 		return diag.FromErr(err)
@@ -96,7 +97,7 @@ func resourceVolumeCreate(ctx context.Context, d *schema.ResourceData, m interfa
 }
 
 func resourceVolumeUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	if d.HasChange("size") {
 		_, c := d.GetChange("size")
 		if err := resizeVolume(ctx, cli, d, c.(int)); err != nil {
@@ -107,7 +108,7 @@ func resourceVolumeUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 }
 
 func resourceVolumeDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_disks.VolumeDeleteRequest{VolumeID: d.Id()}
 	if e := req.Do(ctx, cli); e != nil {
 		return diag.FromErr(e)
@@ -121,7 +122,7 @@ func resourceVolumeDelete(ctx context.Context, d *schema.ResourceData, m interfa
 
 func resourceVolumeRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	vid := d.Id()
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_disks.VolumeDetailRequest{
 		VolumeID: vid,
 	}

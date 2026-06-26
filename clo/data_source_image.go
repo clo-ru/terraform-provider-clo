@@ -2,7 +2,7 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+
 	clo_project "github.com/clo-ru/cloapi-go-client/v2/services/project"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -49,7 +49,7 @@ func dataSourceImage() *schema.Resource {
 
 func dataSourceImageRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_project.ImageListRequest{
 		ProjectID: d.Get("project_id").(string),
 	}

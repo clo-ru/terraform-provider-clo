@@ -2,11 +2,11 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	"time"
+
 	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"time"
 )
 
 func resourceS3UserKeys() *schema.Resource {
@@ -45,7 +45,7 @@ func resourceS3UserKeys() *schema.Resource {
 
 func resourceS3UserKeysCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	uId := d.Get("user_id").(string)
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_storage.S3KeysResetRequest{
 		UserID: uId,
 	}
@@ -59,7 +59,7 @@ func resourceS3UserKeysCreate(ctx context.Context, d *schema.ResourceData, m int
 
 func resourceS3UserKeysRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	uId := d.Id()
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_storage.S3KeysGetRequest{
 		UserID: uId,
 	}

@@ -2,11 +2,12 @@ package clo
 
 import (
 	"context"
+	"time"
+
 	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
 	clo_ip "github.com/clo-ru/cloapi-go-client/v2/services/ip"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"time"
 )
 
 func resourceIpAttach() *schema.Resource {
@@ -55,7 +56,7 @@ func resourceIpAttach() *schema.Resource {
 
 func resourceIpAttachCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	adId := d.Get("address_id").(string)
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 
 	req := clo_ip.AddressAttachRequest{
 		AddressID: adId,
@@ -93,7 +94,7 @@ func resourceIpAttachCreate(ctx context.Context, d *schema.ResourceData, m inter
 
 func resourceIpAttachRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	adId := d.Id()
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_ip.AddressDetailRequest{
 		AddressID: adId,
 	}
@@ -114,7 +115,7 @@ func resourceIpAttachRead(ctx context.Context, d *schema.ResourceData, m interfa
 }
 
 func resourceIpDetach(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_ip.AddressDetachRequest{AddressID: d.Id()}
 	if err := req.Do(ctx, cli); err != nil {
 		return diag.FromErr(err)
@@ -128,7 +129,7 @@ func resourceIpDetach(ctx context.Context, d *schema.ResourceData, m interface{}
 
 func resourceIpAttachUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	if d.HasChange("is_primary") {
-		if e := makePrimary(ctx, d.Id(), m.(*clo_lib.ApiClient), d); e != nil {
+		if e := makePrimary(ctx, d.Id(), m.(*providerMeta).v2, d); e != nil {
 			return diag.FromErr(e)
 		}
 	}

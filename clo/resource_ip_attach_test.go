@@ -3,11 +3,11 @@ package clo
 import (
 	"context"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	"testing"
+
 	"github.com/clo-ru/cloapi-go-client/v2/services/ip"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"testing"
 )
 
 func TestAccCloAddressAttach_basic(t *testing.T) {
@@ -58,7 +58,7 @@ func testAccCheckAddressAttachExists(n string, serverId string) resource.TestChe
 		if rs.Primary.ID == "" {
 			return fmt.Errorf("volume with ID is not set")
 		}
-		cli := testAccProvider.Meta().(*clo_lib.ApiClient)
+		cli := testAccProvider.Meta().(*providerMeta).v2
 		req := ip.AddressDetailRequest{AddressID: rs.Primary.ID}
 		resp, e := req.Do(context.Background(), cli)
 
@@ -75,7 +75,7 @@ func testAccCheckAddressAttachExists(n string, serverId string) resource.TestChe
 }
 
 func testAccCheckAddressAttachDestroy(st *terraform.State) error {
-	cli := testAccProvider.Meta().(*clo_lib.ApiClient)
+	cli := testAccProvider.Meta().(*providerMeta).v2
 	for _, rs := range st.RootModule().Resources {
 		if rs.Type != "clo_network_ip_attach" {
 			continue

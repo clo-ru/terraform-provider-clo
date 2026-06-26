@@ -2,12 +2,12 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	"strconv"
+	"time"
+
 	clo_ip "github.com/clo-ru/cloapi-go-client/v2/services/ip"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"strconv"
-	"time"
 )
 
 func dataSourceIPs() *schema.Resource {
@@ -71,7 +71,7 @@ func dataSourceIPs() *schema.Resource {
 
 func dataSourceIPsRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_ip.AddressListRequest{
 		ProjectID: d.Get("project_id").(string),
 	}

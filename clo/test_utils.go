@@ -2,17 +2,18 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	"github.com/clo-ru/cloapi-go-client/v2/services/disks"
-	"github.com/clo-ru/cloapi-go-client/v2/services/ip"
-	"github.com/clo-ru/cloapi-go-client/v2/services/servers"
-	"github.com/clo-ru/cloapi-go-client/v2/services/ssh-keys"
-	"github.com/clo-ru/cloapi-go-client/v2/services/storage"
-	"github.com/google/uuid"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	"github.com/clo-ru/cloapi-go-client/v2/services/disks"
+	"github.com/clo-ru/cloapi-go-client/v2/services/ip"
+	"github.com/clo-ru/cloapi-go-client/v2/services/servers"
+	sshkeys "github.com/clo-ru/cloapi-go-client/v2/services/ssh-keys"
+	"github.com/clo-ru/cloapi-go-client/v2/services/storage"
+	"github.com/google/uuid"
 )
 
 const testImageID = "44262267-5f2e-4802-acc1-3939f7ae7b9c"

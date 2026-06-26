@@ -2,12 +2,12 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	"strconv"
+	"time"
+
 	clo_project "github.com/clo-ru/cloapi-go-client/v2/services/project"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"strconv"
-	"time"
 )
 
 func dataSourceProjects() *schema.Resource {
@@ -46,7 +46,7 @@ func dataSourceProjects() *schema.Resource {
 
 func dataSourceProjectsRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_project.ProjectListRequest{}
 	resp, e := req.Do(ctx, cli)
 	if e != nil {

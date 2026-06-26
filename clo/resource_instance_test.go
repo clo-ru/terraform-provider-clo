@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	"os"
+	"testing"
+
 	cloTools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
 	"github.com/clo-ru/cloapi-go-client/v2/services/servers"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"os"
-	"testing"
 )
 
 const (
@@ -115,7 +115,7 @@ func testAccCheckInstanceExists(n string, serverItem *servers.Server) resource.T
 		if rs.Primary.ID == "" {
 			return fmt.Errorf("server with ID is not set")
 		}
-		cli := testAccProvider.Meta().(*clo_lib.ApiClient)
+		cli := testAccProvider.Meta().(*providerMeta).v2
 		req := servers.ServerDetailRequest{ServerID: rs.Primary.ID}
 		resp, e := req.Do(context.Background(), cli)
 		if e != nil {
@@ -127,7 +127,7 @@ func testAccCheckInstanceExists(n string, serverItem *servers.Server) resource.T
 }
 
 func testAccCheckInstanceDestroy(st *terraform.State) error {
-	cli := testAccProvider.Meta().(*clo_lib.ApiClient)
+	cli := testAccProvider.Meta().(*providerMeta).v2
 	for _, rs := range st.RootModule().Resources {
 		if rs.Type != "clo_compute_instance" {
 			continue

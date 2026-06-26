@@ -2,12 +2,12 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	"strconv"
+	"time"
+
 	clo_disks "github.com/clo-ru/cloapi-go-client/v2/services/disks"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"strconv"
-	"time"
 )
 
 func dataSourceVolume() *schema.Resource {
@@ -48,7 +48,7 @@ func dataSourceVolume() *schema.Resource {
 }
 
 func dataSourceVolumeRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_disks.VolumeDetailRequest{
 		VolumeID: d.Get("volume_id").(string),
 	}

@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"time"
+
 	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
 	clo_tools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
 	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"log"
-	"time"
 )
 
 const (
@@ -96,7 +97,7 @@ func resourceS3User() *schema.Resource {
 }
 
 func resourceS3UserCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 
 	req := clo_storage.S3UserCreateRequest{
 		ProjectID: d.Get("project_id").(string),
@@ -144,7 +145,7 @@ func buildCreateRequestBody(d *schema.ResourceData) clo_storage.S3UserCreateBody
 
 func resourceS3UserUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	uId := d.Id()
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	if d.HasChange("name") {
 		_, n := d.GetChange("name")
 		req := clo_storage.S3UserPatchRequest{
@@ -200,7 +201,7 @@ func resourceS3UserUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 
 func resourceS3UserRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	uId := d.Id()
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_storage.S3UserDetailRequest{UserID: uId}
 	resp, e := req.Do(ctx, cli)
 	if e != nil {
@@ -246,7 +247,7 @@ func dispatchQuotaInfo(d *schema.ResourceData, q []clo_storage.QuotaInfo) diag.D
 }
 
 func resourceS3UserDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_storage.S3UserDeleteRequest{UserID: d.Id()}
 	if e := req.Do(ctx, cli); e != nil {
 		return diag.FromErr(e)

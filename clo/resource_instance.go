@@ -3,14 +3,15 @@ package clo
 import (
 	"context"
 	"errors"
+	"log"
+	"time"
+
 	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
 	clo_tools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
 	clo_servers "github.com/clo-ru/cloapi-go-client/v2/services/servers"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"log"
-	"time"
 )
 
 const (
@@ -180,7 +181,7 @@ func resourceInstance() *schema.Resource {
 // Actions
 
 func resourceInstanceCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	pid := d.Get("project_id").(string)
 
 	req := clo_servers.ServerCreateRequest{
@@ -207,7 +208,7 @@ func resourceInstanceCreate(ctx context.Context, d *schema.ResourceData, m inter
 	return resourceInstanceRead(ctx, d, m)
 }
 func resourceInstanceUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	servID := d.Id()
 
 	if d.HasChanges("flavor_ram", "flavor_vcpus") {
@@ -228,7 +229,7 @@ func resourceInstanceUpdate(ctx context.Context, d *schema.ResourceData, m inter
 }
 
 func resourceInstanceRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	servID := d.Id()
 
 	resp, err := getServerDetails(ctx, servID, cli)
@@ -249,7 +250,7 @@ func resourceInstanceRead(ctx context.Context, d *schema.ResourceData, m interfa
 }
 func resourceInstanceDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	servID := d.Id()
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 
 	r, err := getServerDetails(ctx, servID, cli)
 	if err != nil {

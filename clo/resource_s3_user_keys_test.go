@@ -3,11 +3,11 @@ package clo
 import (
 	"context"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	"testing"
+
 	"github.com/clo-ru/cloapi-go-client/v2/services/storage"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"testing"
 )
 
 func TestAccCloS3UserKeys_basic(t *testing.T) {
@@ -51,7 +51,7 @@ func testAccCheckS3KeysExists(n string, serverId string) resource.TestCheckFunc 
 		if rs.Primary.ID == "" {
 			return fmt.Errorf("volume with ID is not set")
 		}
-		cli := testAccProvider.Meta().(*clo_lib.ApiClient)
+		cli := testAccProvider.Meta().(*providerMeta).v2
 		req := storage.S3KeysGetRequest{UserID: rs.Primary.ID}
 		resp, e := req.Do(context.Background(), cli)
 

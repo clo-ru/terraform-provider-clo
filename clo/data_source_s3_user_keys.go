@@ -2,12 +2,12 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	"strconv"
+	"time"
+
 	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"strconv"
-	"time"
 )
 
 func dataSourceS3Keys() *schema.Resource {
@@ -34,7 +34,7 @@ func dataSourceS3Keys() *schema.Resource {
 
 func dataSourceS3KeysRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_storage.S3KeysGetRequest{UserID: d.Get("user_id").(string)}
 	resp, e := req.Do(ctx, cli)
 

@@ -3,14 +3,15 @@ package clo
 import (
 	"context"
 	"errors"
+	"log"
+	"time"
+
 	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
 	clo_tools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
 	clo_ip "github.com/clo-ru/cloapi-go-client/v2/services/ip"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"log"
-	"time"
 )
 
 const (
@@ -82,7 +83,7 @@ func resourceIp() *schema.Resource {
 }
 
 func resourceIpCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 
 	req := clo_ip.AddressCreateRequest{
 		ProjectID: d.Get("project_id").(string),
@@ -113,7 +114,7 @@ func resourceIpCreate(ctx context.Context, d *schema.ResourceData, m interface{}
 
 func resourceIpRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	fipId := d.Id()
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 
 	req := clo_ip.AddressDetailRequest{AddressID: fipId}
 	resp, err := req.Do(ctx, cli)
@@ -143,7 +144,7 @@ func resourceIpRead(ctx context.Context, d *schema.ResourceData, m interface{}) 
 }
 
 func resourceIpUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	if d.HasChange("ptr") {
 		_, c := d.GetChange("ptr")
 		if err := changeAddressPtr(ctx, d, c.(string), cli); err != nil {
@@ -154,7 +155,7 @@ func resourceIpUpdate(ctx context.Context, d *schema.ResourceData, m interface{}
 }
 
 func resourceIpDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v2
 	req := clo_ip.AddressDeleteRequest{AddressID: d.Id()}
 	if e := req.Do(ctx, cli); e != nil {
 		return diag.FromErr(e)

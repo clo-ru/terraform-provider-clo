@@ -3,11 +3,11 @@ package clo
 import (
 	"context"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
+	"testing"
+
 	"github.com/clo-ru/cloapi-go-client/v2/services/disks"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"testing"
 )
 
 func TestAccCloVolumeAttach_basic(t *testing.T) {
@@ -57,7 +57,7 @@ func testAccCheckVolumeAttachExists(n string, serverId string) resource.TestChec
 		if rs.Primary.ID == "" {
 			return fmt.Errorf("volume with ID is not set")
 		}
-		cli := testAccProvider.Meta().(*clo_lib.ApiClient)
+		cli := testAccProvider.Meta().(*providerMeta).v2
 		req := disks.VolumeDetailRequest{VolumeID: rs.Primary.ID}
 		resp, e := req.Do(context.Background(), cli)
 
@@ -74,7 +74,7 @@ func testAccCheckVolumeAttachExists(n string, serverId string) resource.TestChec
 }
 
 func testAccCheckVolumeAttachDestroy(st *terraform.State) error {
-	cli := testAccProvider.Meta().(*clo_lib.ApiClient)
+	cli := testAccProvider.Meta().(*providerMeta).v2
 	for _, rs := range st.RootModule().Resources {
 		if rs.Type != "clo_disks_volume_attach" {
 			continue
