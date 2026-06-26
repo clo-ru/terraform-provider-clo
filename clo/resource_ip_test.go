@@ -2,13 +2,11 @@ package clo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"testing"
 
-	cloTools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
-	clo_ip "github.com/clo-ru/cloapi-go-client/v2/services/ip"
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
@@ -19,7 +17,7 @@ const (
 )
 
 func TestAccCloIP_basic(t *testing.T) {
-	var ip = new(clo_ip.Address)
+	var ip = new(cloapi.Address)
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccCloPreCheck(t) },
 		ProviderFactories: testAccProviders,
@@ -37,12 +35,12 @@ func TestAccCloIP_basic(t *testing.T) {
 
 func testAccCloIPBasic() string {
 	return fmt.Sprintf(`resource "clo_network_ip" "fip_1" {
-		project_id = "%s" 
+		project_id = "%s"
 		ptr = "%s"
 	}`, os.Getenv("CLO_API_PROJECT_ID"), ptr)
 }
 
-func testAccCheckIPExists(n string, ipItem *clo_ip.Address) resource.TestCheckFunc {
+func testAccCheckIPExists(n string, ipItem *cloapi.Address) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		rs, ok := state.RootModule().Resources[n]
 		if !ok {
@@ -51,30 +49,24 @@ func testAccCheckIPExists(n string, ipItem *clo_ip.Address) resource.TestCheckFu
 		if rs.Primary.ID == "" {
 			return fmt.Errorf("ip with ID is not set")
 		}
-		cli := testAccProvider.Meta().(*providerMeta).v2
-		req := clo_ip.AddressDetailRequest{
-			AddressID: rs.Primary.ID,
-		}
-		resp, e := req.Do(context.Background(), cli)
+		cli := testAccProvider.Meta().(*providerMeta).v3
+		addr, e := cli.GetAddress(context.Background(), rs.Primary.ID)
 		if e != nil {
 			return e
 		}
-		*ipItem = resp.Result
+		*ipItem = *addr
 		return nil
 	}
 }
 
 func testAccCheckIPDestroy(st *terraform.State) error {
-	cli := testAccProvider.Meta().(*providerMeta).v2
+	cli := testAccProvider.Meta().(*providerMeta).v3
 	for _, rs := range st.RootModule().Resources {
 		if rs.Type != "clo_network_ip" {
 			continue
 		}
-		req := clo_ip.AddressDetailRequest{AddressID: rs.Primary.ID}
-		_, e := req.Do(context.Background(), cli)
-
-		apiError := cloTools.DefaultError{}
-		if errors.As(e, &apiError) && apiError.Code == 404 {
+		_, e := cli.GetAddress(context.Background(), rs.Primary.ID)
+		if cloapi.IsNotFound(e) {
 			return nil
 		}
 		return e

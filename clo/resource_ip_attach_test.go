@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/clo-ru/cloapi-go-client/v2/services/ip"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
@@ -58,40 +57,32 @@ func testAccCheckAddressAttachExists(n string, serverId string) resource.TestChe
 		if rs.Primary.ID == "" {
 			return fmt.Errorf("volume with ID is not set")
 		}
-		cli := testAccProvider.Meta().(*providerMeta).v2
-		req := ip.AddressDetailRequest{AddressID: rs.Primary.ID}
-		resp, e := req.Do(context.Background(), cli)
-
+		cli := testAccProvider.Meta().(*providerMeta).v3
+		addr, e := cli.GetAddress(context.Background(), rs.Primary.ID)
 		if e != nil {
 			return e
 		}
-
-		if resp.Result.AttachedTo == nil || resp.Result.AttachedTo.ID != serverId {
-			return fmt.Errorf("invalid address attachment %v", resp.Result.AttachedTo)
+		if addr.AttachedTo == nil || addr.AttachedTo.ID != serverId {
+			return fmt.Errorf("invalid address attachment %v", addr.AttachedTo)
 		}
-
 		return nil
 	}
 }
 
 func testAccCheckAddressAttachDestroy(st *terraform.State) error {
-	cli := testAccProvider.Meta().(*providerMeta).v2
+	cli := testAccProvider.Meta().(*providerMeta).v3
 	for _, rs := range st.RootModule().Resources {
 		if rs.Type != "clo_network_ip_attach" {
 			continue
 		}
-		req := ip.AddressDetailRequest{AddressID: rs.Primary.ID}
-		resp, e := req.Do(context.Background(), cli)
-
+		addr, e := cli.GetAddress(context.Background(), rs.Primary.ID)
 		if e != nil {
 			return e
 		}
-
-		if resp.Result.AttachedTo != nil {
-			return fmt.Errorf("Attachmend not deleted")
+		if addr.AttachedTo != nil {
+			return fmt.Errorf("attachment not deleted")
 		}
-
-		return e
+		return nil
 	}
 	return nil
 }

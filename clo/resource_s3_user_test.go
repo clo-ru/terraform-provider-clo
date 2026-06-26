@@ -2,13 +2,11 @@ package clo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"testing"
 
-	cloTools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
-	"github.com/clo-ru/cloapi-go-client/v2/services/storage"
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
@@ -18,7 +16,7 @@ const (
 )
 
 func TestAccCloS3User_basic(t *testing.T) {
-	var s3User = new(storage.S3User)
+	var s3User = new(cloapi.S3User)
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccCloPreCheck(t) },
 		ProviderFactories: testAccProviders,
@@ -43,7 +41,7 @@ func testAccCloS3UserBasic() string {
 	}`, userName, os.Getenv("CLO_API_PROJECT_ID"), userName)
 }
 
-func testAccCheckS3UserExists(n string, s3UserItem *storage.S3User) resource.TestCheckFunc {
+func testAccCheckS3UserExists(n string, s3UserItem *cloapi.S3User) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		rs, ok := state.RootModule().Resources[n]
 		if !ok {
@@ -52,31 +50,24 @@ func testAccCheckS3UserExists(n string, s3UserItem *storage.S3User) resource.Tes
 		if rs.Primary.ID == "" {
 			return fmt.Errorf("user with ID is not set")
 		}
-		cli := testAccProvider.Meta().(*providerMeta).v2
-		req := storage.S3UserDetailRequest{
-			UserID: rs.Primary.ID,
-		}
-		resp, e := req.Do(context.Background(), cli)
+		cli := testAccProvider.Meta().(*providerMeta).v3
+		user, e := cli.GetS3User(context.Background(), rs.Primary.ID)
 		if e != nil {
 			return e
 		}
-		*s3UserItem = resp.Result
+		*s3UserItem = *user
 		return nil
 	}
 }
 
 func testAccCheckS3UserDestroy(st *terraform.State) error {
-	cli := testAccProvider.Meta().(*providerMeta).v2
+	cli := testAccProvider.Meta().(*providerMeta).v3
 	for _, rs := range st.RootModule().Resources {
 		if rs.Type != "clo_storage_s3_user" {
 			continue
 		}
-		req := storage.S3UserDetailRequest{
-			UserID: rs.Primary.ID,
-		}
-		_, e := req.Do(context.Background(), cli)
-		apiError := cloTools.DefaultError{}
-		if errors.As(e, &apiError) && apiError.Code == 404 {
+		_, e := cli.GetS3User(context.Background(), rs.Primary.ID)
+		if cloapi.IsNotFound(e) {
 			return nil
 		}
 		return e
