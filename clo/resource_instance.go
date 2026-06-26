@@ -2,13 +2,10 @@ package clo
 
 import (
 	"context"
-	"errors"
 	"log"
 	"time"
 
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	clo_tools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
-	clo_servers "github.com/clo-ru/cloapi-go-client/v2/services/servers"
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -181,34 +178,28 @@ func resourceInstance() *schema.Resource {
 // Actions
 
 func resourceInstanceCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*providerMeta).v2
-	pid := d.Get("project_id").(string)
-
-	req := clo_servers.ServerCreateRequest{
-		Request:   clo_lib.Request{},
-		ProjectID: pid,
-		Body:      buildServerCreateBody(d),
-	}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
+	cli := m.(*providerMeta).v3
+	id, err := cli.CreateServer(ctx, buildServerCreateParams(d))
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
-	d.SetId(resp.Result.ID)
+	d.SetId(id)
 
-	if err := waitInstanceState(ctx, resp.Result.ID, cli, []string{creatingInstance}, []string{activeInstance}, d.Timeout(schema.TimeoutCreate)); err != nil {
-		return diag.FromErr(e)
+	if err := waitInstanceState(ctx, id, cli, []string{creatingInstance}, []string{activeInstance}, d.Timeout(schema.TimeoutCreate)); err != nil {
+		return diag.FromErr(err)
 	}
 
 	if p, ok := d.GetOk("password"); ok {
-		if e := resetServerPassword(ctx, resp.Result.ID, p.(string), cli); e != nil {
-			return diag.FromErr(e)
+		if err := cli.ChangeServerPassword(ctx, id, p.(string)); err != nil {
+			return diag.FromErr(err)
 		}
 	}
 	return resourceInstanceRead(ctx, d, m)
 }
+
 func resourceInstanceUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*providerMeta).v2
+	cli := m.(*providerMeta).v3
 	servID := d.Id()
 
 	if d.HasChanges("flavor_ram", "flavor_vcpus") {
@@ -221,7 +212,7 @@ func resourceInstanceUpdate(ctx context.Context, d *schema.ResourceData, m inter
 
 	if d.HasChange("password") {
 		_, c := d.GetChange("password")
-		if err := resetServerPassword(ctx, servID, c.(string), cli); err != nil {
+		if err := cli.ChangeServerPassword(ctx, servID, c.(string)); err != nil {
 			return diag.FromErr(err)
 		}
 	}
@@ -229,40 +220,41 @@ func resourceInstanceUpdate(ctx context.Context, d *schema.ResourceData, m inter
 }
 
 func resourceInstanceRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*providerMeta).v2
-	servID := d.Id()
-
-	resp, err := getServerDetails(ctx, servID, cli)
+	cli := m.(*providerMeta).v3
+	srv, err := cli.GetServer(ctx, d.Id())
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	if e := d.Set("id", resp.Result.ID); e != nil {
+	if e := d.Set("id", srv.ID); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("created_in", resp.Result.CreatedIn); e != nil {
+	if e := d.Set("created_in", srv.CreatedIn); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("status", resp.Result.Status); e != nil {
+	if e := d.Set("status", srv.Status); e != nil {
 		return diag.FromErr(e)
 	}
 	return nil
 }
+
 func resourceInstanceDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	servID := d.Id()
-	cli := m.(*providerMeta).v2
+	cli := m.(*providerMeta).v3
 
-	r, err := getServerDetails(ctx, servID, cli)
+	srv, err := cli.GetServer(ctx, servID)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	req := clo_servers.ServerDeleteRequest{
-		ServerID: servID,
-		Body:     buildServerDeleteBody(&r.Result),
+	var deleteVolumes []string
+	for _, disk := range srv.Disks {
+		if disk.StorageType == "volume" {
+			deleteVolumes = append(deleteVolumes, disk.ID)
+		}
 	}
 
-	if err := req.Do(ctx, cli); err != nil {
+	if err := cli.DeleteServer(ctx, servID, srv.Addresses, deleteVolumes); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -274,144 +266,125 @@ func resourceInstanceDelete(ctx context.Context, d *schema.ResourceData, m inter
 
 // Helpers
 
-func buildServerDeleteBody(server *clo_servers.Server) clo_servers.ServerDeleteBody {
-	b := clo_servers.ServerDeleteBody{
-		DeleteAddresses: server.Addresses,
-	}
-
-	for _, d := range server.DiskData {
-		if d.StorageType == "volume" {
-			b.DeleteVolumes = append(b.DeleteVolumes, d.ID)
-		}
-	}
-	return b
-}
-
-func buildServerCreateBody(d *schema.ResourceData) clo_servers.ServerCreateBody {
-	return clo_servers.ServerCreateBody{
-		Name:  d.Get("name").(string),
-		Image: d.Get("image_id").(string),
-		Flavor: clo_servers.ServerFlavorBody{
-			Ram:   d.Get("flavor_ram").(int),
-			Vcpus: d.Get("flavor_vcpus").(int),
-		},
-		Recipe:    buildInstanceRecipeBody(d),
-		Storages:  buildInstanceStorageBody(d),
-		Addresses: buildInstanceAddrBody(d),
-		Licenses:  buildInstanceLicenseBody(d),
-		Keypairs:  buildInstanceKeypairsBody(d),
+func buildServerCreateParams(d *schema.ResourceData) cloapi.ServerCreateParams {
+	return cloapi.ServerCreateParams{
+		ProjectID:   d.Get("project_id").(string),
+		Name:        d.Get("name").(string),
+		ImageID:     d.Get("image_id").(string),
+		FlavorRam:   d.Get("flavor_ram").(int),
+		FlavorVcpus: d.Get("flavor_vcpus").(int),
+		RecipeID:    optString(d, "recipe_id"),
+		Storages:    buildInstanceStorages(d),
+		Addresses:   buildInstanceAddresses(d),
+		Licenses:    buildInstanceLicenses(d),
+		Keypairs:    buildInstanceKeypairs(d),
 	}
 }
 
-func buildInstanceKeypairsBody(d *schema.ResourceData) (keyPairs []string) {
-	if ks, ok := d.GetOk("keypairs"); ok {
-		kp := ks.([]interface{})
-		keyPairs = make([]string, len(kp))
-		for i, v := range kp {
-			keyPairs[i] = v.(string)
-		}
-		return
-	}
-	return
-}
-
-func buildInstanceRecipeBody(d *schema.ResourceData) string {
-	if rc, ok := d.GetOk("recipe_id"); ok {
-		return rc.(string)
+func optString(d *schema.ResourceData, key string) string {
+	if v, ok := d.GetOk(key); ok {
+		return v.(string)
 	}
 	return ""
 }
 
-func buildInstanceLicenseBody(d *schema.ResourceData) (sl []clo_servers.ServerLicenseBody) {
-	if v, ok := d.GetOk("licenses"); ok {
-		vl := v.([]interface{})
-		for _, l := range vl {
-			m := l.(map[string]interface{})
-			licBody := clo_servers.ServerLicenseBody{}
-			if v, ok := m["addon"]; ok {
-				licBody.Addon = v.(string)
-			}
-			if v, ok := m["name"]; ok {
-				licBody.Name = v.(string)
-			}
-			if v, ok := m["value"]; ok {
-				licBody.Value = v.(int)
-			}
-			sl = append(sl, licBody)
-		}
-		return
+func buildInstanceKeypairs(d *schema.ResourceData) []string {
+	ks, ok := d.GetOk("keypairs")
+	if !ok {
+		return nil
 	}
-	return
+	kp := ks.([]interface{})
+	keyPairs := make([]string, len(kp))
+	for i, v := range kp {
+		keyPairs[i] = v.(string)
+	}
+	return keyPairs
 }
 
-func buildInstanceStorageBody(d *schema.ResourceData) (ss []clo_servers.ServerStorageBody) {
-	if v, ok := d.GetOk("block_device"); ok {
-		vl := v.([]any)
-		for _, stor := range vl {
-			m := stor.(map[string]any)
-			storBody := clo_servers.ServerStorageBody{
-				Bootable: false,
-			}
-			if v, ok := m["size"]; ok {
-				storBody.Size = v.(int)
-			}
-			if v, ok := m["bootable"]; ok {
-				storBody.Bootable = v.(bool)
-			}
-			if v, ok := m["storage_type"]; ok {
-				storBody.StorageType = v.(string)
-			}
-			ss = append(ss, storBody)
-		}
-		return
+func buildInstanceLicenses(d *schema.ResourceData) []cloapi.ServerLicense {
+	v, ok := d.GetOk("licenses")
+	if !ok {
+		return nil
 	}
-	return
+	var out []cloapi.ServerLicense
+	for _, l := range v.([]interface{}) {
+		m := l.(map[string]interface{})
+		lic := cloapi.ServerLicense{}
+		if x, ok := m["addon"]; ok {
+			lic.Addon = x.(string)
+		}
+		if x, ok := m["name"]; ok {
+			lic.Name = x.(string)
+		}
+		out = append(out, lic)
+	}
+	return out
 }
 
-func buildInstanceAddrBody(d *schema.ResourceData) (sa []clo_servers.ServerAddressesBody) {
-	if v, ok := d.GetOk("addresses"); ok {
-		vl := v.([]any)
-		for _, adr := range vl {
-			m := adr.(map[string]any)
-			a := clo_servers.ServerAddressesBody{}
-			if v, ok := m["external"]; ok {
-				a.External = v.(bool)
-			}
-			if v, ok := m["address_id"]; ok {
-				a.AddressId = v.(string)
-			}
-			if v, ok := m["version"]; ok {
-				a.Version = v.(int)
-			}
-			if v, ok := m["ddos_protection"]; ok {
-				a.DdosProtection = v.(bool)
-			}
-			if v, ok := m["bandwidth"]; ok {
-				a.MaxBandwidth = v.(int)
-			}
-			sa = append(sa, a)
-		}
-		return
+func buildInstanceStorages(d *schema.ResourceData) []cloapi.ServerStorage {
+	v, ok := d.GetOk("block_device")
+	if !ok {
+		return nil
 	}
-	return
+	var out []cloapi.ServerStorage
+	for _, stor := range v.([]any) {
+		m := stor.(map[string]any)
+		s := cloapi.ServerStorage{}
+		if x, ok := m["size"]; ok {
+			s.Size = x.(int)
+		}
+		if x, ok := m["bootable"]; ok {
+			s.Bootable = x.(bool)
+		}
+		if x, ok := m["storage_type"]; ok {
+			s.StorageType = x.(string)
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+func buildInstanceAddresses(d *schema.ResourceData) []cloapi.ServerAddress {
+	v, ok := d.GetOk("addresses")
+	if !ok {
+		return nil
+	}
+	var out []cloapi.ServerAddress
+	for _, adr := range v.([]any) {
+		m := adr.(map[string]any)
+		a := cloapi.ServerAddress{}
+		if x, ok := m["external"]; ok {
+			a.External = x.(bool)
+		}
+		if x, ok := m["address_id"]; ok {
+			a.AddressID = x.(string)
+		}
+		if x, ok := m["version"]; ok {
+			a.Version = x.(int)
+		}
+		if x, ok := m["ddos_protection"]; ok {
+			a.DdosProtection = x.(bool)
+		}
+		if x, ok := m["bandwidth"]; ok {
+			a.Bandwidth = x.(int)
+		}
+		out = append(out, a)
+	}
+	return out
 }
 
 // Waiters
-func waitInstanceDeleted(ctx context.Context, serverId string, cli *clo_lib.ApiClient, timeout time.Duration) error {
-	createStateConf := resource.StateChangeConf{
+func waitInstanceDeleted(ctx context.Context, serverId string, cli *cloapi.Client, timeout time.Duration) error {
+	stateConf := resource.StateChangeConf{
 		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_servers.ServerDetailRequest{ServerID: serverId}
-			resp, err := req.Do(ctx, cli)
-
-			apiError := clo_tools.DefaultError{}
-			resState := resp.Result.Status
-
-			if errors.As(err, &apiError) && apiError.Code == 404 {
-				resState = deletedInstance
-				err = nil
+			srv, err := cli.GetServer(ctx, serverId)
+			if cloapi.IsNotFound(err) {
+				return struct{}{}, deletedInstance, nil
 			}
-
-			return resp.Result, resState, err
+			if err != nil {
+				return nil, "", err
+			}
+			return srv, srv.Status, nil
 		},
 		Pending:    []string{deletingInstance},
 		Target:     []string{deletedInstance},
@@ -419,9 +392,8 @@ func waitInstanceDeleted(ctx context.Context, serverId string, cli *clo_lib.ApiC
 		Timeout:    timeout,
 		MinTimeout: 30 * time.Second,
 	}
-	return resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
-		_, err := createStateConf.WaitForStateContext(ctx)
-		if err != nil {
+	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
+		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
 			log.Printf("[DEBUG] Retrying after error: %s", err)
 			return &resource.RetryError{Err: err}
 		}
@@ -429,12 +401,14 @@ func waitInstanceDeleted(ctx context.Context, serverId string, cli *clo_lib.ApiC
 	})
 }
 
-func waitInstanceState(ctx context.Context, serverId string, cli *clo_lib.ApiClient, pending []string, target []string, timeout time.Duration) error {
-	createStateConf := resource.StateChangeConf{
+func waitInstanceState(ctx context.Context, serverId string, cli *cloapi.Client, pending []string, target []string, timeout time.Duration) error {
+	stateConf := resource.StateChangeConf{
 		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_servers.ServerDetailRequest{ServerID: serverId}
-			resp, err := req.Do(ctx, cli)
-			return resp, resp.Result.Status, err
+			srv, err := cli.GetServer(ctx, serverId)
+			if err != nil {
+				return nil, "", err
+			}
+			return srv, srv.Status, nil
 		},
 		Pending:    pending,
 		Target:     target,
@@ -442,9 +416,8 @@ func waitInstanceState(ctx context.Context, serverId string, cli *clo_lib.ApiCli
 		Timeout:    timeout,
 		MinTimeout: 30 * time.Second,
 	}
-	return resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
-		_, err := createStateConf.WaitForStateContext(ctx)
-		if err != nil {
+	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
+		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
 			log.Printf("[DEBUG] Retrying after error: %s", err)
 			return &resource.RetryError{Err: err}
 		}
@@ -452,31 +425,9 @@ func waitInstanceState(ctx context.Context, serverId string, cli *clo_lib.ApiCli
 	})
 }
 
-// Api actions
-
-func getServerDetails(ctx context.Context, id string, cli *clo_lib.ApiClient) (*clo_servers.ServerDetailResponse, error) {
-	req := clo_servers.ServerDetailRequest{ServerID: id}
-	return req.Do(ctx, cli)
-}
-
-func resetServerPassword(ctx context.Context, id string, password string, cli *clo_lib.ApiClient) error {
-	req := clo_servers.ServerChangePasswdRequest{
-		ServerID: id, Body: clo_servers.ServerChangePasswdBody{Password: password},
-	}
-	return req.Do(ctx, cli)
-}
-
-func resizeServer(ctx context.Context, id string, vcpus int, ram int, cli *clo_lib.ApiClient, d *schema.ResourceData) error {
-	req := clo_servers.ServerResizeRequest{
-		Request:  clo_lib.Request{},
-		ServerID: id,
-		Body:     clo_servers.ServerResizeBody{Vcpus: vcpus, Ram: ram},
-	}
-	if err := req.Do(ctx, cli); err != nil {
+func resizeServer(ctx context.Context, id string, vcpus int, ram int, cli *cloapi.Client, d *schema.ResourceData) error {
+	if err := cli.ResizeServer(ctx, id, ram, vcpus); err != nil {
 		return err
 	}
-	if err := waitInstanceState(ctx, id, cli, []string{resizingInstance}, []string{activeInstance, stoppedInstance}, d.Timeout(schema.TimeoutUpdate)); err != nil {
-		return err
-	}
-	return nil
+	return waitInstanceState(ctx, id, cli, []string{resizingInstance}, []string{activeInstance, stoppedInstance}, d.Timeout(schema.TimeoutUpdate))
 }

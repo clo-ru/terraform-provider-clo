@@ -59,7 +59,11 @@ func buildTestServer(cli *clo_lib.ApiClient, t *testing.T) (string, error) {
 		}
 	})
 
-	if err := waitInstanceState(context.Background(), res.Result.ID, cli, []string{creatingInstance}, []string{activeInstance}, 20*time.Minute); err != nil {
+	cli3, err := getTestClientV3()
+	if err != nil {
+		return "", err
+	}
+	if err := waitInstanceState(context.Background(), res.Result.ID, cli3, []string{creatingInstance}, []string{activeInstance}, 20*time.Minute); err != nil {
 		return "", err
 	}
 	return res.Result.ID, nil
@@ -70,8 +74,11 @@ func destroyTestServer(serverId string, cli *clo_lib.ApiClient) error {
 	if err := req.Do(context.Background(), cli); err != nil {
 		return err
 	}
-
-	return waitInstanceDeleted(context.Background(), serverId, cli, 20*time.Minute)
+	cli3, err := getTestClientV3()
+	if err != nil {
+		return err
+	}
+	return waitInstanceDeleted(context.Background(), serverId, cli3, 20*time.Minute)
 }
 
 // Volume
