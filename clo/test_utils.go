@@ -136,7 +136,11 @@ func buildTestAddress(cli *clo_lib.ApiClient, t *testing.T) (string, error) {
 		}
 	})
 
-	if _, err := waitAddressState(context.Background(), res.Result.ID, cli, []string{processingIp}, []string{detachedIp}, 10*time.Minute); err != nil {
+	cli3, err := getTestClientV3()
+	if err != nil {
+		return "", err
+	}
+	if err := waitAddressState(context.Background(), res.Result.ID, cli3, []string{processingIp}, []string{detachedIp}, 10*time.Minute); err != nil {
 		return "", err
 	}
 	return res.Result.ID, nil
@@ -147,7 +151,11 @@ func destroyTestAddress(id string, cli *clo_lib.ApiClient) error {
 	if err := req.Do(context.Background(), cli); err != nil {
 		return err
 	}
-	return waitAddressDeleted(context.Background(), id, cli, 10*time.Minute)
+	cli3, err := getTestClientV3()
+	if err != nil {
+		return err
+	}
+	return waitAddressDeleted(context.Background(), id, cli3, 10*time.Minute)
 }
 
 // S3 user
