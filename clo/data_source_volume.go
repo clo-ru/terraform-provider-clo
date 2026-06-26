@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	clo_disks "github.com/clo-ru/cloapi-go-client/v2/services/disks"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -48,40 +47,37 @@ func dataSourceVolume() *schema.Resource {
 }
 
 func dataSourceVolumeRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*providerMeta).v2
-	req := clo_disks.VolumeDetailRequest{
-		VolumeID: d.Get("volume_id").(string),
+	cli := m.(*providerMeta).v3
+	vol, err := cli.GetVolume(ctx, d.Get("volume_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
+	if e := d.Set("name", vol.Name); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("name", resp.Result.Name); e != nil {
+	if e := d.Set("status", vol.Status); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("status", resp.Result.Status); e != nil {
+	if e := d.Set("created_in", vol.CreatedIn); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("created_in", resp.Result.CreatedIn); e != nil {
+	if e := d.Set("description", vol.Description); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("description", resp.Result.Description); e != nil {
+	if e := d.Set("size", vol.Size); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("size", resp.Result.Size); e != nil {
+	if e := d.Set("bootable", vol.Bootable); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("bootable", resp.Result.Bootable); e != nil {
+	if e := d.Set("undetachable", vol.Undetachable); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("undetachable", resp.Result.Undetachable); e != nil {
-		return diag.FromErr(e)
-	}
-	if resp.Result.Attachment != nil {
-		if e := d.Set("device", resp.Result.Attachment.Device); e != nil {
+	if vol.Attachment != nil {
+		if e := d.Set("device", vol.Attachment.Device); e != nil {
 			return diag.FromErr(e)
 		}
-		if e := d.Set("attached_to_instance_id", resp.Result.Attachment.ID); e != nil {
+		if e := d.Set("attached_to_instance_id", vol.Attachment.ID); e != nil {
 			return diag.FromErr(e)
 		}
 	}

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	clo_disks "github.com/clo-ru/cloapi-go-client/v2/services/disks"
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -59,46 +59,35 @@ func dataSourceVolumes() *schema.Resource {
 }
 
 func dataSourceVolumesRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*providerMeta).v2
-	req := clo_disks.VolumeListRequest{
-		ProjectID: d.Get("project_id").(string),
+	cli := m.(*providerMeta).v3
+	volumes, err := cli.ListVolumes(ctx, d.Get("project_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("result", flattenVolumesResults(resp.Result)); e != nil {
+	if e := d.Set("result", flattenVolumesResults(volumes)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return nil
 }
 
-func flattenVolumesResults(pr []clo_disks.Volume) []interface{} {
-	lpr := len(pr)
-	if lpr > 0 {
-		res := make([]interface{}, lpr, lpr)
-		for i, p := range pr {
-			ri := make(map[string]interface{})
-			ri["id"] = p.ID
-			ri["name"] = p.Name
-
-			ri["status"] = p.Status
-			ri["bootable"] = p.Bootable
-			ri["undetachable"] = p.Undetachable
-			ri["created_in"] = p.CreatedIn
-			ri["size"] = p.Size
-
-			if p.Attachment != nil {
-				ri["device"] = p.Attachment.Device
-				ri["attached_to_instance_id"] = p.Attachment.ID
-			}
-
-			res[i] = ri
+func flattenVolumesResults(pr []cloapi.Volume) []interface{} {
+	res := make([]interface{}, 0, len(pr))
+	for _, p := range pr {
+		ri := map[string]interface{}{
+			"id":           p.ID,
+			"name":         p.Name,
+			"status":       p.Status,
+			"bootable":     p.Bootable,
+			"undetachable": p.Undetachable,
+			"created_in":   p.CreatedIn,
+			"size":         p.Size,
 		}
-		return res
+		if p.Attachment != nil {
+			ri["device"] = p.Attachment.Device
+			ri["attached_to_instance_id"] = p.Attachment.ID
+		}
+		res = append(res, ri)
 	}
-	return make([]interface{}, 0)
+	return res
 }

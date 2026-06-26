@@ -11,10 +11,34 @@ import (
 // Volume is the provider-facing view of a volume. Adapter types deliberately do not
 // expose generated SDK types, so generated name/shape changes stay inside this package.
 type Volume struct {
-	ID         string
-	Status     string
-	CreatedIn  string
-	Attachment *VolumeAttachment // nil when the volume is not attached
+	ID           string
+	Name         string
+	Status       string
+	Description  string
+	CreatedIn    string
+	Size         int
+	Bootable     bool
+	Undetachable bool
+	Attachment   *VolumeAttachment // nil when the volume is not attached
+}
+
+func volumeFromSchema(r *gen.VolumeSchema) Volume {
+	v := Volume{
+		ID:          r.Id,
+		Name:        r.Name,
+		Status:      r.Status,
+		Description: r.Description,
+		Size:        r.Size,
+		Bootable:    r.Bootable,
+		CreatedIn:   r.CreatedIn.Format(time.RFC3339),
+	}
+	if r.Undetachable != nil {
+		v.Undetachable = *r.Undetachable
+	}
+	if r.AttachedToServer != nil {
+		v.Attachment = &VolumeAttachment{Device: r.AttachedToServer.Device, ID: r.AttachedToServer.Id}
+	}
+	return v
 }
 
 // VolumeAttachment describes where a volume is attached.
@@ -57,16 +81,25 @@ func (c *Client) GetVolume(ctx context.Context, id string) (*Volume, error) {
 	if resp.OK == nil || resp.OK.Result == nil {
 		return nil, fmt.Errorf("cloapi: empty volume detail response")
 	}
-	r := resp.OK.Result
-	v := &Volume{
-		ID:        r.Id,
-		Status:    r.Status,
-		CreatedIn: r.CreatedIn.Format(time.RFC3339),
+	v := volumeFromSchema(resp.OK.Result)
+	return &v, nil
+}
+
+// ListVolumes returns the project's volumes (single page, matching v2 behavior).
+func (c *Client) ListVolumes(ctx context.Context, projectID string) ([]Volume, error) {
+	resp, err := c.gen.ProjectVolumesListWithResponse(ctx, projectID)
+	if err != nil {
+		return nil, err
 	}
-	if r.AttachedToServer != nil {
-		v.Attachment = &VolumeAttachment{Device: r.AttachedToServer.Device, ID: r.AttachedToServer.Id}
+	if resp.OK == nil || resp.OK.Result == nil {
+		return nil, nil
 	}
-	return v, nil
+	items := *resp.OK.Result
+	out := make([]Volume, 0, len(items))
+	for i := range items {
+		out = append(out, volumeFromSchema(&items[i]))
+	}
+	return out, nil
 }
 
 // AttachVolume attaches the volume to a server.
