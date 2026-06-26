@@ -2,14 +2,11 @@ package clo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"time"
 
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	clo_tools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
-	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -97,132 +94,88 @@ func resourceS3User() *schema.Resource {
 }
 
 func resourceS3UserCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*providerMeta).v2
+	cli := m.(*providerMeta).v3
 
-	req := clo_storage.S3UserCreateRequest{
-		ProjectID: d.Get("project_id").(string),
-		Body:      buildCreateRequestBody(d),
+	id, err := cli.CreateS3User(ctx, buildS3UserCreateParams(d))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-	d.SetId(resp.Result.ID)
-	if e != nil {
-		return diag.FromErr(e)
-	}
+	d.SetId(id)
 
-	if _, err := waitS3UserState(ctx, resp.Result.ID, cli, []string{s3UserCreating}, []string{s3UserActive}, d.Timeout(schema.TimeoutCreate)); err != nil {
+	if err := waitS3UserState(ctx, id, cli, []string{s3UserCreating}, []string{s3UserActive}, d.Timeout(schema.TimeoutCreate)); err != nil {
 		return diag.FromErr(err)
 	}
 
 	return resourceS3UserRead(ctx, d, m)
 }
 
-func buildCreateRequestBody(d *schema.ResourceData) clo_storage.S3UserCreateBody {
-	cn := d.Get("canonical_name").(string)
-	b := clo_storage.S3UserCreateBody{
-		Name:          cn,
-		CanonicalName: cn,
-		MaxBuckets:    d.Get("max_buckets").(int),
-		BucketQuota:   clo_storage.CreateQuotaParams{},
-		UserQuota: clo_storage.CreateQuotaParams{
-			MaxSize: d.Get("user_quota_max_size").(int),
-		},
+func buildS3UserCreateParams(d *schema.ResourceData) cloapi.S3UserCreateParams {
+	return cloapi.S3UserCreateParams{
+		ProjectID:             d.Get("project_id").(string),
+		Name:                  optString(d, "name"),
+		CanonicalName:         d.Get("canonical_name").(string),
+		DefaultBucket:         d.Get("default_bucket").(bool),
+		MaxBuckets:            d.Get("max_buckets").(int),
+		UserQuotaMaxSize:      d.Get("user_quota_max_size").(int),
+		UserQuotaMaxObjects:   d.Get("user_quota_max_objects").(int),
+		BucketQuotaMaxSize:    d.Get("bucket_quota_max_size").(int),
+		BucketQuotaMaxObjects: d.Get("bucket_quota_max_objects").(int),
 	}
-	if v, ok := d.GetOk("name"); ok {
-		b.Name = v.(string)
-	}
-	if v, ok := d.GetOk("bucket_quota_max_size"); ok {
-		b.UserQuota.MaxObjects = v.(int)
-	}
-	if v, ok := d.GetOk("user_quota_max_objects"); ok {
-		b.UserQuota.MaxObjects = v.(int)
-	}
-	if v, ok := d.GetOk("bucket_quota_max_objects"); ok {
-		b.UserQuota.MaxObjects = v.(int)
-	}
-
-	return b
 }
 
 func resourceS3UserUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	cli := m.(*providerMeta).v3
 	uId := d.Id()
-	cli := m.(*providerMeta).v2
+
 	if d.HasChange("name") {
-		_, n := d.GetChange("name")
-		req := clo_storage.S3UserPatchRequest{
-			UserID: uId,
-			Body: clo_storage.S3UserPatchBody{
-				Name: n.(string),
-			},
-		}
-		e := req.Do(ctx, cli)
-		if e != nil {
-			return diag.FromErr(e)
+		if err := cli.UpdateS3UserName(ctx, uId, d.Get("name").(string)); err != nil {
+			return diag.FromErr(err)
 		}
 	}
+
 	if d.HasChanges(
 		"max_buckets",
-		"user_quota.max_size",
-		"user_quota.max_objects",
+		"user_quota_max_size",
+		"user_quota_max_objects",
 		"bucket_quota_max_size",
 		"bucket_quota_max_objects",
 	) {
-		b := clo_storage.S3UserQuotaPatchBody{}
-		if d.HasChange("max_buckets") {
-			_, mb := d.GetChange("max_buckets")
-			b.MaxBuckets = mb.(int)
-		}
-		if d.HasChange("user_quota_max_size") {
-			_, ms := d.GetChange("user_quota.max_size")
-			b.UserQuota.MaxSize = ms.(int)
-		}
-		if d.HasChange("user_quota_max_objects") {
-			_, ms := d.GetChange("user_quota.max_objects")
-			b.UserQuota.MaxObjects = ms.(int)
-		}
-		if d.HasChange("bucket_quota_max_size") {
-			_, ms := d.GetChange("bucket_quota.max_size")
-			b.BucketQuota.MaxSize = ms.(int)
-		}
-		if d.HasChange("bucket_quota_max_objects") {
-			_, ms := d.GetChange("bucket_quota.max_objects")
-			b.BucketQuota.MaxObjects = ms.(int)
-		}
-		req := clo_storage.S3UserQuotaPatchRequest{
-			UserID: uId,
-			Body:   b,
-		}
-
-		if e := req.Do(ctx, cli); e != nil {
-			return diag.FromErr(e)
+		err := cli.UpdateS3UserQuota(ctx, uId, cloapi.S3UserQuotaParams{
+			MaxBuckets:            d.Get("max_buckets").(int),
+			UserQuotaMaxSize:      d.Get("user_quota_max_size").(int),
+			UserQuotaMaxObjects:   d.Get("user_quota_max_objects").(int),
+			BucketQuotaMaxSize:    d.Get("bucket_quota_max_size").(int),
+			BucketQuotaMaxObjects: d.Get("bucket_quota_max_objects").(int),
+		})
+		if err != nil {
+			return diag.FromErr(err)
 		}
 	}
 	return resourceS3UserRead(ctx, d, m)
 }
 
 func resourceS3UserRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	uId := d.Id()
-	cli := m.(*providerMeta).v2
-	req := clo_storage.S3UserDetailRequest{UserID: uId}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
+	cli := m.(*providerMeta).v3
+	user, err := cli.GetS3User(ctx, d.Id())
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	if e := d.Set("user_id", user.ID); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("user_id", resp.Result.Status); e != nil {
+	if e := d.Set("status", user.Status); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("status", resp.Result.Status); e != nil {
+	if e := d.Set("tenant", user.Tenant); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("tenant", resp.Result.Tenant); e != nil {
+	if e := d.Set("max_buckets", user.MaxBuckets); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("max_buckets", resp.Result.MaxBuckets); e != nil {
-		return diag.FromErr(e)
-	}
-	return dispatchQuotaInfo(d, resp.Result.Quotas)
+	return dispatchQuotaInfo(d, user.Quotas)
 }
 
-func dispatchQuotaInfo(d *schema.ResourceData, q []clo_storage.QuotaInfo) diag.Diagnostics {
+func dispatchQuotaInfo(d *schema.ResourceData, q []cloapi.S3Quota) diag.Diagnostics {
 	for _, qi := range q {
 		switch qi.Type {
 		case "user":
@@ -247,12 +200,10 @@ func dispatchQuotaInfo(d *schema.ResourceData, q []clo_storage.QuotaInfo) diag.D
 }
 
 func resourceS3UserDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*providerMeta).v2
-	req := clo_storage.S3UserDeleteRequest{UserID: d.Id()}
-	if e := req.Do(ctx, cli); e != nil {
-		return diag.FromErr(e)
+	cli := m.(*providerMeta).v3
+	if err := cli.DeleteS3User(ctx, d.Id()); err != nil {
+		return diag.FromErr(err)
 	}
-
 	if err := waitS3UserDeleted(ctx, d.Id(), cli, d.Timeout(schema.TimeoutDelete)); err != nil {
 		return diag.FromErr(err)
 	}
@@ -261,13 +212,14 @@ func resourceS3UserDelete(ctx context.Context, d *schema.ResourceData, m interfa
 
 // waiters
 
-func waitS3UserState(ctx context.Context, id string, cli *clo_lib.ApiClient, pending []string, target []string, timeout time.Duration) (*clo_storage.S3UserDetailResponse, error) {
-	var resp *clo_storage.S3UserDetailResponse
-	createStateConf := resource.StateChangeConf{
+func waitS3UserState(ctx context.Context, id string, cli *cloapi.Client, pending []string, target []string, timeout time.Duration) error {
+	stateConf := resource.StateChangeConf{
 		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_storage.S3UserDetailRequest{UserID: id}
-			resp, err = req.Do(ctx, cli)
-			return resp, resp.Result.Status, nil
+			user, err := cli.GetS3User(ctx, id)
+			if err != nil {
+				return nil, "", err
+			}
+			return user, user.Status, nil
 		},
 		Pending:    pending,
 		Target:     target,
@@ -275,30 +227,26 @@ func waitS3UserState(ctx context.Context, id string, cli *clo_lib.ApiClient, pen
 		Timeout:    timeout,
 		MinTimeout: 30 * time.Second,
 	}
-	err := resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
-		_, err := createStateConf.WaitForStateContext(ctx)
-		if err != nil {
+	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
+		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
 			log.Printf("[DEBUG] Retrying after error: %s", err)
 			return &resource.RetryError{Err: err}
 		}
 		return nil
 	})
-	return resp, err
 }
 
-func waitS3UserDeleted(ctx context.Context, id string, cli *clo_lib.ApiClient, timeout time.Duration) error {
-	createStateConf := resource.StateChangeConf{
+func waitS3UserDeleted(ctx context.Context, id string, cli *cloapi.Client, timeout time.Duration) error {
+	stateConf := resource.StateChangeConf{
 		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_storage.S3UserDetailRequest{UserID: id}
-			resp, err := req.Do(ctx, cli)
-
-			apiError := clo_tools.DefaultError{}
-			resState := resp.Result.Status
-			if errors.As(err, &apiError) && apiError.Code == 404 {
-				resState = s3UserDelete
-				err = nil
+			user, err := cli.GetS3User(ctx, id)
+			if cloapi.IsNotFound(err) {
+				return struct{}{}, s3UserDelete, nil
 			}
-			return resp.Result, resState, err
+			if err != nil {
+				return nil, "", err
+			}
+			return user, user.Status, nil
 		},
 		Pending:    []string{s3UserDeleting},
 		Target:     []string{s3UserDelete},
@@ -306,9 +254,8 @@ func waitS3UserDeleted(ctx context.Context, id string, cli *clo_lib.ApiClient, t
 		Timeout:    timeout,
 		MinTimeout: 30 * time.Second,
 	}
-	return resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
-		_, err := createStateConf.WaitForStateContext(ctx)
-		if err != nil {
+	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
+		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
 			log.Printf("[DEBUG] Retrying after error: %s", err)
 			return &resource.RetryError{Err: err}
 		}

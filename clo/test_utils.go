@@ -182,7 +182,11 @@ func buildTestS3user(cli *clo_lib.ApiClient, t *testing.T) (string, error) {
 		}
 	})
 
-	if _, err := waitS3UserState(context.Background(), res.Result.ID, cli, []string{s3UserCreating}, []string{s3UserActive}, 10*time.Minute); err != nil {
+	cli3, err := getTestClientV3()
+	if err != nil {
+		return "", err
+	}
+	if err := waitS3UserState(context.Background(), res.Result.ID, cli3, []string{s3UserCreating}, []string{s3UserActive}, 10*time.Minute); err != nil {
 		return "", err
 	}
 	return res.Result.ID, nil
@@ -193,7 +197,11 @@ func destroyTestS3User(id string, cli *clo_lib.ApiClient) error {
 	if err := req.Do(context.Background(), cli); err != nil {
 		return err
 	}
-	return waitS3UserDeleted(context.Background(), id, cli, 10*time.Minute)
+	cli3, err := getTestClientV3()
+	if err != nil {
+		return err
+	}
+	return waitS3UserDeleted(context.Background(), id, cli3, 10*time.Minute)
 }
 
 // keypair
