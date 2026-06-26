@@ -4,17 +4,13 @@ import (
 	"context"
 	"errors"
 
-	clolib "github.com/clo-ru/cloapi-go-client/v2/clo"
 	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-// providerMeta carries both SDK clients during the v2->v3 migration. Resources read
-// .v2 until they are migrated, then switch to the .v3 adapter. The .v2 field (and the
-// v2 dependency) are removed once every resource is migrated.
+// providerMeta carries the SDK client passed to every resource and data source.
 type providerMeta struct {
-	v2 *clolib.ApiClient
 	v3 *cloapi.Client
 }
 
@@ -71,13 +67,9 @@ func configureProvider(ctx context.Context, data *schema.ResourceData) (interfac
 	if len(at) == 0 {
 		return nil, diag.FromErr(errors.New("CLO_API_AUTH_TOKEN parameter should be provided"))
 	}
-	v2cli, e := clolib.NewDefaultClient(at, bu)
-	if e != nil {
-		return nil, diag.FromErr(e)
-	}
 	v3cli, e := cloapi.New(at, bu)
 	if e != nil {
 		return nil, diag.FromErr(e)
 	}
-	return &providerMeta{v2: v2cli, v3: v3cli}, nil
+	return &providerMeta{v3: v3cli}, nil
 }
