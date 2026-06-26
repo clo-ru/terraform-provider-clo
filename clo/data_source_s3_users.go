@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -67,38 +67,30 @@ func dataSourceS3Users() *schema.Resource {
 }
 
 func dataSourceS3UsersRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*providerMeta).v2
-	req := clo_storage.S3UserListRequest{
-		ProjectID: d.Get("project_id").(string),
+	cli := m.(*providerMeta).v3
+	users, err := cli.ListS3Users(ctx, d.Get("project_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("result", flattenS3UsersResults(resp.Result)); e != nil {
+	if e := d.Set("result", flattenS3UsersResults(users)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return nil
 }
 
-func flattenS3UsersResults(pr []clo_storage.S3User) []interface{} {
-	lpr := len(pr)
-	if lpr > 0 {
-		res := make([]interface{}, lpr, lpr)
-		for i, p := range pr {
-			ri := make(map[string]interface{})
-			ri["id"] = p.ID
-			ri["name"] = p.Name
-			ri["status"] = p.Status
-			ri["tenant"] = p.Tenant
-			ri["max_buckets"] = p.MaxBuckets
-			ri["canonical_name"] = p.CanonicalName
-			ri["quotas"] = formatS3Quota(p.Quotas)
-			res[i] = ri
-		}
-		return res
+func flattenS3UsersResults(pr []cloapi.S3User) []interface{} {
+	res := make([]interface{}, 0, len(pr))
+	for _, p := range pr {
+		res = append(res, map[string]interface{}{
+			"id":             p.ID,
+			"name":           p.Name,
+			"status":         p.Status,
+			"tenant":         p.Tenant,
+			"max_buckets":    p.MaxBuckets,
+			"canonical_name": p.CanonicalName,
+			"quotas":         flattenS3Quota(p.Quotas),
+		})
 	}
-	return make([]interface{}, 0)
+	return res
 }

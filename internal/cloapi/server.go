@@ -10,17 +10,56 @@ import (
 
 // Server is the provider-facing view of a compute instance.
 type Server struct {
-	ID        string
-	Status    string
-	CreatedIn string
-	Addresses []string
-	Disks     []ServerDisk
+	ID          string
+	Name        string
+	Status      string
+	Project     string
+	CreatedIn   string
+	RescueMode  string
+	GuestAgent  bool
+	FlavorRam   int
+	FlavorVcpus int
+	ImageName   string // "<distribution> <version>", empty if no image
+	RecipeName  string
+	Addresses   []string
+	Disks       []ServerDisk
 }
 
 // ServerDisk is one disk attached to a server.
 type ServerDisk struct {
 	ID          string
 	StorageType string
+}
+
+func serverFromSchema(r *gen.ServerSchema) Server {
+	s := Server{
+		ID:         r.Id,
+		Name:       r.Name,
+		Status:     r.Status,
+		Project:    r.Project,
+		RescueMode: r.RescueMode,
+		GuestAgent: r.GuestAgent,
+		CreatedIn:  r.CreatedIn.Format(time.RFC3339),
+	}
+	if r.Flavor != nil {
+		s.FlavorRam = r.Flavor.Ram
+		s.FlavorVcpus = r.Flavor.Vcpus
+	}
+	if r.Image != nil {
+		s.ImageName = r.Image.OperationSystem.Distribution + " " + r.Image.OperationSystem.Version
+	}
+	if r.Recipe != nil {
+		s.RecipeName = r.Recipe.Name
+	}
+	if r.Addresses != nil {
+		s.Addresses = *r.Addresses
+	}
+	if r.DiskData != nil {
+		for _, d := range *r.DiskData {
+			s.Disks = append(s.Disks, ServerDisk{ID: d.Id, StorageType: d.StorageType})
+		}
+	}
+	return s
 }
 
 // ServerStorage, ServerAddress and ServerLicense describe a server to create.
@@ -144,21 +183,25 @@ func (c *Client) GetServer(ctx context.Context, id string) (*Server, error) {
 	if resp.OK == nil || resp.OK.Result == nil {
 		return nil, fmt.Errorf("cloapi: empty server detail response")
 	}
-	r := resp.OK.Result
-	s := &Server{
-		ID:        r.Id,
-		Status:    r.Status,
-		CreatedIn: r.CreatedIn.Format(time.RFC3339),
+	s := serverFromSchema(resp.OK.Result)
+	return &s, nil
+}
+
+// ListServers returns the project's instances (single page, matching v2 behavior).
+func (c *Client) ListServers(ctx context.Context, projectID string) ([]Server, error) {
+	resp, err := c.gen.ProjectServerListWithResponse(ctx, projectID)
+	if err != nil {
+		return nil, err
 	}
-	if r.Addresses != nil {
-		s.Addresses = *r.Addresses
+	if resp.OK == nil || resp.OK.Result == nil {
+		return nil, nil
 	}
-	if r.DiskData != nil {
-		for _, d := range *r.DiskData {
-			s.Disks = append(s.Disks, ServerDisk{ID: d.Id, StorageType: d.StorageType})
-		}
+	items := *resp.OK.Result
+	out := make([]Server, 0, len(items))
+	for i := range items {
+		out = append(out, serverFromSchema(&items[i]))
 	}
-	return s, nil
+	return out, nil
 }
 
 // ResizeServer changes the instance's flavor.

@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	clo_project "github.com/clo-ru/cloapi-go-client/v2/services/project"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -59,32 +58,24 @@ func dataSourceImages() *schema.Resource {
 }
 
 func dataSourceImagesRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*providerMeta).v2
-	req := clo_project.ImageListRequest{
-		ProjectID: d.Get("project_id").(string),
+	cli := m.(*providerMeta).v3
+	images, err := cli.ListImages(ctx, d.Get("project_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	var res []interface{}
-	lr := len(resp.Result)
-	if lr > 0 {
-		res = make([]interface{}, lr)
-		for i, r := range resp.Result {
-			m := map[string]interface{}{"id": r.ID, "name": r.Name}
-			if osSystem := r.OperationSystem; osSystem != nil {
-				m["os_family"] = r.OperationSystem.OsFamily
-				m["os_version"] = r.OperationSystem.Version
-				m["os_distribution"] = r.OperationSystem.Distribution
-			}
-			res[i] = m
-		}
+	res := make([]interface{}, 0, len(images))
+	for _, im := range images {
+		res = append(res, map[string]interface{}{
+			"id":              im.ID,
+			"name":            im.Name,
+			"os_family":       im.OSFamily,
+			"os_version":      im.OSVersion,
+			"os_distribution": im.OSDistribution,
+		})
 	}
 	if e := d.Set("result", res); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return nil
 }

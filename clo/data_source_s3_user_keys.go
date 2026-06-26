@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -33,24 +32,16 @@ func dataSourceS3Keys() *schema.Resource {
 }
 
 func dataSourceS3KeysRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*providerMeta).v2
-	req := clo_storage.S3KeysGetRequest{UserID: d.Get("user_id").(string)}
-	resp, e := req.Do(ctx, cli)
-
-	if e != nil {
+	cli := m.(*providerMeta).v3
+	// The v3 API returns only the access key on read; the secret key is available
+	// only at key generation, so secret_key stays empty here.
+	accessKey, err := cli.GetS3UserAccessKey(ctx, d.Get("user_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	if e := d.Set("access_key", accessKey); e != nil {
 		return diag.FromErr(e)
 	}
-	if len(resp.Result) > 0 {
-		key := resp.Result[0]
-		if e := d.Set("access_key", key.AccessKey); e != nil {
-			return diag.FromErr(e)
-		}
-		if e := d.Set("secret_key", key.SecretKey); e != nil {
-			return diag.FromErr(e)
-		}
-	}
-
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return nil
 }

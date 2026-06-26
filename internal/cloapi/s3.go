@@ -9,11 +9,39 @@ import (
 
 // S3User is the provider-facing view of an object-storage user.
 type S3User struct {
-	ID         string
-	Status     string
-	Tenant     string
-	MaxBuckets int
-	Quotas     []S3Quota
+	ID            string
+	Name          string
+	CanonicalName string
+	Status        string
+	Tenant        string
+	MaxBuckets    int
+	Quotas        []S3Quota
+}
+
+func s3UserFromSchema(r *gen.S3UserSchema) S3User {
+	u := S3User{
+		ID:            r.Id,
+		Name:          r.Name,
+		CanonicalName: r.CanonicalName,
+		Status:        r.Status,
+	}
+	if r.Tenant != nil {
+		u.Tenant = *r.Tenant
+	}
+	if r.BucketsMax != nil {
+		u.MaxBuckets = *r.BucketsMax
+	}
+	for _, q := range r.Quotas {
+		sq := S3Quota{Type: q.Type}
+		if q.MaxSize != nil {
+			sq.MaxSize = *q.MaxSize
+		}
+		if q.MaxObjects != nil {
+			sq.MaxObjects = *q.MaxObjects
+		}
+		u.Quotas = append(u.Quotas, sq)
+	}
+	return u
 }
 
 // S3Quota is one quota entry ("user" or "bucket").
@@ -104,25 +132,25 @@ func (c *Client) GetS3User(ctx context.Context, id string) (*S3User, error) {
 	if resp.OK == nil || resp.OK.Result == nil {
 		return nil, fmt.Errorf("cloapi: empty s3 user detail response")
 	}
-	r := resp.OK.Result
-	u := &S3User{ID: r.Id, Status: r.Status}
-	if r.Tenant != nil {
-		u.Tenant = *r.Tenant
+	u := s3UserFromSchema(resp.OK.Result)
+	return &u, nil
+}
+
+// ListS3Users returns the project's object-storage users (single page, matching v2).
+func (c *Client) ListS3Users(ctx context.Context, projectID string) ([]S3User, error) {
+	resp, err := c.gen.S3UsersListWithResponse(ctx, projectID)
+	if err != nil {
+		return nil, err
 	}
-	if r.BucketsMax != nil {
-		u.MaxBuckets = *r.BucketsMax
+	if resp.OK == nil || resp.OK.Result == nil {
+		return nil, nil
 	}
-	for _, q := range r.Quotas {
-		sq := S3Quota{Type: q.Type}
-		if q.MaxSize != nil {
-			sq.MaxSize = *q.MaxSize
-		}
-		if q.MaxObjects != nil {
-			sq.MaxObjects = *q.MaxObjects
-		}
-		u.Quotas = append(u.Quotas, sq)
+	items := *resp.OK.Result
+	out := make([]S3User, 0, len(items))
+	for i := range items {
+		out = append(out, s3UserFromSchema(&items[i]))
 	}
-	return u, nil
+	return out, nil
 }
 
 // UpdateS3UserName updates the user's human-readable name.

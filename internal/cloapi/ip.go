@@ -10,12 +10,46 @@ import (
 
 // Address is the provider-facing view of an IP address.
 type Address struct {
-	ID        string
-	Status    string
-	Address   string
-	CreatedIn string
-	Bandwidth int
-	IsPrimary bool
+	ID             string
+	Status         string
+	Address        string
+	Ptr            string
+	Type           string
+	CreatedIn      string
+	Bandwidth      int
+	IsPrimary      bool
+	DdosProtection bool
+	AttachedTo     *AddressAttachedTo // nil when not attached
+}
+
+// AddressAttachedTo describes the entity an address is attached to.
+type AddressAttachedTo struct {
+	ID     string
+	Entity string
+}
+
+func addressFromSchema(r *gen.AddressSchema) Address {
+	a := Address{
+		ID:             r.Id,
+		Status:         r.Status,
+		Type:           r.Type,
+		CreatedIn:      r.CreatedIn.Format(time.RFC3339),
+		IsPrimary:      r.IsPrimary,
+		DdosProtection: r.DdosProtection,
+	}
+	if r.Address != nil {
+		a.Address = *r.Address
+	}
+	if r.Ptr != nil {
+		a.Ptr = *r.Ptr
+	}
+	if r.BandwidthMaxMbps != nil {
+		a.Bandwidth = *r.BandwidthMaxMbps
+	}
+	if r.AttachedTo != nil {
+		a.AttachedTo = &AddressAttachedTo{ID: r.AttachedTo.Id, Entity: r.AttachedTo.Entity}
+	}
+	return a
 }
 
 // CreateAddress creates an address in the project and returns its ID.
@@ -43,20 +77,25 @@ func (c *Client) GetAddress(ctx context.Context, id string) (*Address, error) {
 	if resp.OK == nil || resp.OK.Result == nil {
 		return nil, fmt.Errorf("cloapi: empty address detail response")
 	}
-	r := resp.OK.Result
-	a := &Address{
-		ID:        r.Id,
-		Status:    r.Status,
-		CreatedIn: r.CreatedIn.Format(time.RFC3339),
-		IsPrimary: r.IsPrimary,
+	a := addressFromSchema(resp.OK.Result)
+	return &a, nil
+}
+
+// ListAddresses returns the project's addresses (single page, matching v2 behavior).
+func (c *Client) ListAddresses(ctx context.Context, projectID string) ([]Address, error) {
+	resp, err := c.gen.ProjectAddressesListWithResponse(ctx, projectID)
+	if err != nil {
+		return nil, err
 	}
-	if r.Address != nil {
-		a.Address = *r.Address
+	if resp.OK == nil || resp.OK.Result == nil {
+		return nil, nil
 	}
-	if r.BandwidthMaxMbps != nil {
-		a.Bandwidth = *r.BandwidthMaxMbps
+	items := *resp.OK.Result
+	out := make([]Address, 0, len(items))
+	for i := range items {
+		out = append(out, addressFromSchema(&items[i]))
 	}
-	return a, nil
+	return out, nil
 }
 
 // DeleteAddress deletes the address.

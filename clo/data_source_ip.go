@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	clo_ip "github.com/clo-ru/cloapi-go-client/v2/services/ip"
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -59,48 +59,31 @@ func dataSourceIP() *schema.Resource {
 }
 
 func dataSourceIPRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*providerMeta).v2
-	req := clo_ip.AddressDetailRequest{
-		AddressID: d.Get("address_id").(string),
+	cli := m.(*providerMeta).v3
+	addr, err := cli.GetAddress(ctx, d.Get("address_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
+	fields := map[string]interface{}{
+		"ptr":             addr.Ptr,
+		"type":            addr.Type,
+		"status":          addr.Status,
+		"address":         addr.Address,
+		"created_in":      addr.CreatedIn,
+		"is_primary":      addr.IsPrimary,
+		"ddos_protection": addr.DdosProtection,
+		"attached_to":     flattenAttachedTo(addr.AttachedTo),
 	}
-	if e := d.Set("ptr", resp.Result.Ptr); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("type", resp.Result.Type); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("type", resp.Result.Type); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("status", resp.Result.Status); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("address", resp.Result.Address); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("created_in", resp.Result.CreatedIn); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("is_primary", resp.Result.IsPrimary); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("ddos_protection", resp.Result.DdosProtection); e != nil {
-		return diag.FromErr(e)
-	}
-
-	if e := d.Set("attached_to", formatAttachedTo(resp.Result.AttachedTo)); e != nil {
-		return diag.FromErr(e)
+	for k, v := range fields {
+		if e := d.Set(k, v); e != nil {
+			return diag.FromErr(e)
+		}
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return nil
 }
 
-func formatAttachedTo(attach *clo_ip.AttachedToDetails) []interface{} {
+func flattenAttachedTo(attach *cloapi.AddressAttachedTo) []interface{} {
 	att := make([]interface{}, 0)
 	if attach != nil {
 		att = append(att, map[string]interface{}{"id": attach.ID, "entity": attach.Entity})

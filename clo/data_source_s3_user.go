@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -53,52 +53,36 @@ func dataSourceS3User() *schema.Resource {
 }
 
 func dataSourceS3UserRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*providerMeta).v2
-	req := clo_storage.S3UserDetailRequest{
-		UserID: d.Get("user_id").(string),
+	cli := m.(*providerMeta).v3
+	user, err := cli.GetS3User(ctx, d.Get("user_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-
-	if e != nil {
-		return diag.FromErr(e)
+	fields := map[string]interface{}{
+		"name":           user.Name,
+		"status":         user.Status,
+		"tenant":         user.Tenant,
+		"max_buckets":    user.MaxBuckets,
+		"canonical_name": user.CanonicalName,
+		"quotas":         flattenS3Quota(user.Quotas),
 	}
-	if e := d.Set("name", resp.Result.Name); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("status", resp.Result.Status); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("tenant", resp.Result.Tenant); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("max_buckets", resp.Result.MaxBuckets); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("canonical_name", resp.Result.CanonicalName); e != nil {
-		return diag.FromErr(e)
-	}
-
-	if e := d.Set("quotas", formatS3Quota(resp.Result.Quotas)); e != nil {
-		return diag.FromErr(e)
+	for k, v := range fields {
+		if e := d.Set(k, v); e != nil {
+			return diag.FromErr(e)
+		}
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return nil
 }
 
-func formatS3Quota(quotas []clo_storage.QuotaInfo) []interface{} {
-	var quotaData []interface{}
-	ld := len(quotas)
-	if ld > 0 {
-		quotaData = make([]interface{}, ld)
-		for j, q := range quotas {
-			quotaData[j] = map[string]interface{}{
-				"type":        q.Type,
-				"max_size":    q.MaxSize,
-				"max_objects": q.MaxObjects,
-			}
-		}
-		return quotaData
+func flattenS3Quota(quotas []cloapi.S3Quota) []interface{} {
+	out := make([]interface{}, 0, len(quotas))
+	for _, q := range quotas {
+		out = append(out, map[string]interface{}{
+			"type":        q.Type,
+			"max_size":    q.MaxSize,
+			"max_objects": q.MaxObjects,
+		})
 	}
-	return make([]interface{}, 0)
+	return out
 }
