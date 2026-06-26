@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	clo_disks "github.com/clo-ru/cloapi-go-client/v2/services/disks"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -44,40 +43,35 @@ func resourceVolumeAttach() *schema.Resource {
 func resourceVolumeAttachCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	vid := d.Get("volume_id").(string)
 	sid := d.Get("instance_id").(string)
-	cli := m.(*providerMeta).v2
-	req := clo_disks.VolumeAttachRequest{
-		VolumeID: vid,
-		Body:     clo_disks.VolumeAttachBody{ServerID: sid},
+	cli := m.(*providerMeta).v3
+	if err := cli.AttachVolume(ctx, vid, sid); err != nil {
+		return diag.FromErr(err)
 	}
-	e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
+	if err := waitVolumeState(ctx, vid, cli, []string{attachingVolume}, []string{attachedVolume}, d.Timeout(schema.TimeoutCreate)); err != nil {
+		return diag.FromErr(err)
 	}
-
-	resp, err := waitVolumeState(ctx, vid, cli, []string{attachingVolume}, []string{attachedVolume}, d.Timeout(schema.TimeoutCreate))
+	vol, err := cli.GetVolume(ctx, vid)
 	if err != nil {
 		return diag.FromErr(err)
 	}
-
-	if e := d.Set("device", resp.Result.Attachment.Device); e != nil {
-		return diag.FromErr(e)
+	if vol.Attachment != nil {
+		if e := d.Set("device", vol.Attachment.Device); e != nil {
+			return diag.FromErr(e)
+		}
 	}
 	d.SetId(vid)
 	return nil
 }
 
 func resourceVolumeAttachRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	vid := d.Id()
-	cli := m.(*providerMeta).v2
-	req := clo_disks.VolumeDetailRequest{VolumeID: vid}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
+	cli := m.(*providerMeta).v3
+	vol, err := cli.GetVolume(ctx, d.Id())
+	if err != nil {
+		return diag.FromErr(err)
 	}
-
 	device := ""
-	if resp.Result.Attachment != nil {
-		device = resp.Result.Attachment.ID
+	if vol.Attachment != nil {
+		device = vol.Attachment.ID
 	}
 	if e := d.Set("device", device); e != nil {
 		return diag.FromErr(e)
@@ -87,18 +81,11 @@ func resourceVolumeAttachRead(ctx context.Context, d *schema.ResourceData, m int
 
 func resourceVolumeDetach(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	vid := d.Id()
-	cli := m.(*providerMeta).v2
-	req := clo_disks.VolumeDetachRequest{
-		VolumeID: vid,
-		Body: clo_disks.VolumeDetachBody{
-			Force: true,
-		},
+	cli := m.(*providerMeta).v3
+	if err := cli.DetachVolume(ctx, vid, true); err != nil {
+		return diag.FromErr(err)
 	}
-	if e := req.Do(ctx, cli); e != nil {
-		return diag.FromErr(e)
-	}
-	_, err := waitVolumeState(ctx, vid, cli, []string{detachingVolume}, []string{activeVolume}, d.Timeout(schema.TimeoutDelete))
-	if err != nil {
+	if err := waitVolumeState(ctx, vid, cli, []string{detachingVolume}, []string{activeVolume}, d.Timeout(schema.TimeoutDelete)); err != nil {
 		return diag.FromErr(err)
 	}
 	return nil

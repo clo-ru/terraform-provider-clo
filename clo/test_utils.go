@@ -13,6 +13,7 @@ import (
 	"github.com/clo-ru/cloapi-go-client/v2/services/servers"
 	sshkeys "github.com/clo-ru/cloapi-go-client/v2/services/ssh-keys"
 	"github.com/clo-ru/cloapi-go-client/v2/services/storage"
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/google/uuid"
 )
 
@@ -22,6 +23,12 @@ func getTestClient() (*clo_lib.ApiClient, error) {
 	authKey := os.Getenv("CLO_API_AUTH_TOKEN")
 	baseUrl := os.Getenv("CLO_API_AUTH_URL")
 	return clo_lib.NewDefaultClient(authKey, baseUrl)
+}
+
+// getTestClientV3 builds a v3 adapter client for helpers whose shared waiters have
+// already migrated to v3. Removed when the test helpers fully migrate (P6).
+func getTestClientV3() (*cloapi.Client, error) {
+	return cloapi.New(os.Getenv("CLO_API_AUTH_TOKEN"), os.Getenv("CLO_API_AUTH_URL"))
 }
 
 func getTestProject() string {
@@ -84,7 +91,11 @@ func buildTestVolume(cli *clo_lib.ApiClient, t *testing.T) (string, error) {
 		}
 	})
 
-	if _, err := waitVolumeState(context.Background(), volumeRes.Result.ID, cli, []string{creatingVolume}, []string{activeVolume}, 10*time.Minute); err != nil {
+	cli3, err := getTestClientV3()
+	if err != nil {
+		return "", err
+	}
+	if err := waitVolumeState(context.Background(), volumeRes.Result.ID, cli3, []string{creatingVolume}, []string{activeVolume}, 10*time.Minute); err != nil {
 		return "", err
 	}
 	return volumeRes.Result.ID, nil
@@ -95,7 +106,11 @@ func destroyTestVolume(volumeId string, cli *clo_lib.ApiClient) error {
 	if err := req.Do(context.Background(), cli); err != nil {
 		return err
 	}
-	return waitVolumeDeleted(context.Background(), volumeId, cli, 10*time.Minute)
+	cli3, err := getTestClientV3()
+	if err != nil {
+		return err
+	}
+	return waitVolumeDeleted(context.Background(), volumeId, cli3, 10*time.Minute)
 }
 
 // Address
