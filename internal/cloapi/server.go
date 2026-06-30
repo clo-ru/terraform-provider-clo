@@ -220,11 +220,13 @@ func (c *Client) ChangeServerPassword(ctx context.Context, id, password string) 
 func (c *Client) DeleteServer(ctx context.Context, id string, deleteAddresses, deleteVolumes []string) error {
 	body := gen.ServerDeleteJSONRequestBody{}
 	if len(deleteAddresses) > 0 {
+		body.DeleteAddresses = &gen.ServerDeleteJSONBody_DeleteAddresses{}
 		if err := body.DeleteAddresses.FromServerDeleteJSONBodyDeleteAddresses0(deleteAddresses); err != nil {
 			return err
 		}
 	}
 	if len(deleteVolumes) > 0 {
+		body.DeleteVolumes = &gen.ServerDeleteJSONBody_DeleteVolumes{}
 		if err := body.DeleteVolumes.FromServerDeleteJSONBodyDeleteVolumes0(deleteVolumes); err != nil {
 			return err
 		}

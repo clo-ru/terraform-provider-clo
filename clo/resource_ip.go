@@ -2,12 +2,10 @@ package clo
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -155,52 +153,24 @@ func resourceIpDelete(ctx context.Context, d *schema.ResourceData, m interface{}
 
 // Waiters
 func waitAddressState(ctx context.Context, id string, cli *cloapi.Client, pending []string, target []string, timeout time.Duration) error {
-	stateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			addr, err := cli.GetAddress(ctx, id)
-			if err != nil {
-				return nil, "", err
-			}
-			return addr, addr.Status, nil
-		},
-		Pending:    pending,
-		Target:     target,
-		Delay:      10 * time.Second,
-		Timeout:    timeout,
-		MinTimeout: 30 * time.Second,
-	}
-	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
-		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
+	return waitForState(ctx, timeout, pending, target, func() (interface{}, string, error) {
+		addr, err := cli.GetAddress(ctx, id)
+		if err != nil {
+			return nil, "", err
 		}
-		return nil
+		return addr, addr.Status, nil
 	})
 }
 
 func waitAddressDeleted(ctx context.Context, id string, cli *cloapi.Client, timeout time.Duration) error {
-	stateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			addr, err := cli.GetAddress(ctx, id)
-			if cloapi.IsNotFound(err) {
-				return struct{}{}, deletedIp, nil
-			}
-			if err != nil {
-				return nil, "", err
-			}
-			return addr, addr.Status, nil
-		},
-		Pending:    []string{processingIp},
-		Target:     []string{deletedIp},
-		Delay:      10 * time.Second,
-		Timeout:    timeout,
-		MinTimeout: 30 * time.Second,
-	}
-	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
-		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
+	return waitForState(ctx, timeout, []string{processingIp}, []string{deletedIp}, func() (interface{}, string, error) {
+		addr, err := cli.GetAddress(ctx, id)
+		if cloapi.IsNotFound(err) {
+			return struct{}{}, deletedIp, nil
 		}
-		return nil
+		if err != nil {
+			return nil, "", err
+		}
+		return addr, addr.Status, nil
 	})
 }

@@ -2,12 +2,11 @@ package clo
 
 import (
 	"context"
-	"log"
+	"strings"
 	"time"
 
 	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -249,7 +248,7 @@ func resourceInstanceDelete(ctx context.Context, d *schema.ResourceData, m inter
 
 	var deleteVolumes []string
 	for _, disk := range srv.Disks {
-		if disk.StorageType == "volume" {
+		if strings.ToLower(disk.StorageType) == "volume" {
 			deleteVolumes = append(deleteVolumes, disk.ID)
 		}
 	}
@@ -375,53 +374,25 @@ func buildInstanceAddresses(d *schema.ResourceData) []cloapi.ServerAddress {
 
 // Waiters
 func waitInstanceDeleted(ctx context.Context, serverId string, cli *cloapi.Client, timeout time.Duration) error {
-	stateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			srv, err := cli.GetServer(ctx, serverId)
-			if cloapi.IsNotFound(err) {
-				return struct{}{}, deletedInstance, nil
-			}
-			if err != nil {
-				return nil, "", err
-			}
-			return srv, srv.Status, nil
-		},
-		Pending:    []string{deletingInstance},
-		Target:     []string{deletedInstance},
-		Delay:      10 * time.Second,
-		Timeout:    timeout,
-		MinTimeout: 30 * time.Second,
-	}
-	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
-		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
+	return waitForState(ctx, timeout, []string{deletingInstance}, []string{deletedInstance}, func() (interface{}, string, error) {
+		srv, err := cli.GetServer(ctx, serverId)
+		if cloapi.IsNotFound(err) {
+			return struct{}{}, deletedInstance, nil
 		}
-		return nil
+		if err != nil {
+			return nil, "", err
+		}
+		return srv, srv.Status, nil
 	})
 }
 
 func waitInstanceState(ctx context.Context, serverId string, cli *cloapi.Client, pending []string, target []string, timeout time.Duration) error {
-	stateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			srv, err := cli.GetServer(ctx, serverId)
-			if err != nil {
-				return nil, "", err
-			}
-			return srv, srv.Status, nil
-		},
-		Pending:    pending,
-		Target:     target,
-		Delay:      10 * time.Second,
-		Timeout:    timeout,
-		MinTimeout: 30 * time.Second,
-	}
-	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
-		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
+	return waitForState(ctx, timeout, pending, target, func() (interface{}, string, error) {
+		srv, err := cli.GetServer(ctx, serverId)
+		if err != nil {
+			return nil, "", err
 		}
-		return nil
+		return srv, srv.Status, nil
 	})
 }
 

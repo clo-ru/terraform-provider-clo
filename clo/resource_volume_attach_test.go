@@ -10,6 +10,7 @@ import (
 )
 
 func TestAccCloVolumeAttach_basic(t *testing.T) {
+	skipIfNotAcc(t)
 	cli, err := getTestClient()
 	if err != nil {
 		t.Error("Error get test client ", err)

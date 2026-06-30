@@ -3,12 +3,11 @@ package clo
 import (
 	"context"
 	"fmt"
-	"log"
+	"strings"
 	"time"
 
 	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -177,7 +176,7 @@ func resourceS3UserRead(ctx context.Context, d *schema.ResourceData, m interface
 
 func dispatchQuotaInfo(d *schema.ResourceData, q []cloapi.S3Quota) diag.Diagnostics {
 	for _, qi := range q {
-		switch qi.Type {
+		switch strings.ToLower(qi.Type) {
 		case "user":
 			if e := d.Set("user_quota_max_size", qi.MaxSize); e != nil {
 				return diag.FromErr(e)
@@ -193,7 +192,7 @@ func dispatchQuotaInfo(d *schema.ResourceData, q []cloapi.S3Quota) diag.Diagnost
 				return diag.FromErr(e)
 			}
 		default:
-			return diag.FromErr(fmt.Errorf("wrong the quota_info type, %s", qi.Type))
+			return diag.FromErr(fmt.Errorf("the quota_info type is wrong, %s", qi.Type))
 		}
 	}
 	return nil
@@ -213,52 +212,24 @@ func resourceS3UserDelete(ctx context.Context, d *schema.ResourceData, m interfa
 // waiters
 
 func waitS3UserState(ctx context.Context, id string, cli *cloapi.Client, pending []string, target []string, timeout time.Duration) error {
-	stateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			user, err := cli.GetS3User(ctx, id)
-			if err != nil {
-				return nil, "", err
-			}
-			return user, user.Status, nil
-		},
-		Pending:    pending,
-		Target:     target,
-		Delay:      10 * time.Second,
-		Timeout:    timeout,
-		MinTimeout: 30 * time.Second,
-	}
-	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
-		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
+	return waitForState(ctx, timeout, pending, target, func() (interface{}, string, error) {
+		user, err := cli.GetS3User(ctx, id)
+		if err != nil {
+			return nil, "", err
 		}
-		return nil
+		return user, user.Status, nil
 	})
 }
 
 func waitS3UserDeleted(ctx context.Context, id string, cli *cloapi.Client, timeout time.Duration) error {
-	stateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			user, err := cli.GetS3User(ctx, id)
-			if cloapi.IsNotFound(err) {
-				return struct{}{}, s3UserDelete, nil
-			}
-			if err != nil {
-				return nil, "", err
-			}
-			return user, user.Status, nil
-		},
-		Pending:    []string{s3UserDeleting},
-		Target:     []string{s3UserDelete},
-		Delay:      10 * time.Second,
-		Timeout:    timeout,
-		MinTimeout: 30 * time.Second,
-	}
-	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
-		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
+	return waitForState(ctx, timeout, []string{s3UserDeleting}, []string{s3UserDelete}, func() (interface{}, string, error) {
+		user, err := cli.GetS3User(ctx, id)
+		if cloapi.IsNotFound(err) {
+			return struct{}{}, s3UserDelete, nil
 		}
-		return nil
+		if err != nil {
+			return nil, "", err
+		}
+		return user, user.Status, nil
 	})
 }

@@ -36,7 +36,7 @@ func testAccCloVolumeBasic() string {
 	return fmt.Sprintf(`resource "clo_disks_volume" "%s"{
 			project_id = "%s"
 			name = "%s"
-			size = 30
+			size = 10
 	}`, volumeName, os.Getenv("CLO_API_PROJECT_ID"), volumeName)
 }
 

@@ -28,8 +28,8 @@ func s3UserFromSchema(r *gen.S3UserSchema) S3User {
 	if r.Tenant != nil {
 		u.Tenant = *r.Tenant
 	}
-	if r.BucketsMax != nil {
-		u.MaxBuckets = *r.BucketsMax
+	if r.MaxBuckets != nil {
+		u.MaxBuckets = *r.MaxBuckets
 	}
 	for _, q := range r.Quotas {
 		sq := S3Quota{Type: q.Type}

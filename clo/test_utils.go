@@ -11,8 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const testImageID = "44262267-5f2e-4802-acc1-3939f7ae7b9c"
-
 func getTestClient() (*cloapi.Client, error) {
 	return cloapi.New(os.Getenv("CLO_API_AUTH_TOKEN"), os.Getenv("CLO_API_AUTH_URL"))
 }
@@ -21,12 +19,33 @@ func getTestProject() string {
 	return os.Getenv("CLO_API_PROJECT_ID")
 }
 
+// getTestImageID resolves a usable OS image for the test project at runtime instead
+// of hard-coding an ID (image IDs differ per environment and change over time). It
+// prefers a Linux image (small, no license needed) and falls back to the first
+// available one.
+func getTestImageID(t *testing.T, cli *cloapi.Client) string {
+	t.Helper()
+	images, err := cli.ListImages(context.Background(), getTestProject())
+	if err != nil {
+		t.Fatalf("list images: %v", err)
+	}
+	if len(images) == 0 {
+		t.Fatalf("no images available in project %s", getTestProject())
+	}
+	for _, im := range images {
+		if strings.EqualFold(im.OSFamily, "linux") {
+			return im.ID
+		}
+	}
+	return images[0].ID
+}
+
 // Server
 func buildTestServer(cli *cloapi.Client, t *testing.T) (string, error) {
 	id, err := cli.CreateServer(context.Background(), cloapi.ServerCreateParams{
 		ProjectID:   getTestProject(),
 		Name:        "testServer",
-		ImageID:     testImageID,
+		ImageID:     getTestImageID(t, cli),
 		FlavorRam:   2,
 		FlavorVcpus: 1,
 		Storages:    []cloapi.ServerStorage{{Bootable: true, StorageType: "local", Size: 10}},
@@ -89,33 +108,9 @@ func destroyTestVolume(volumeId string, cli *cloapi.Client) error {
 	return waitVolumeDeleted(context.Background(), volumeId, cli, 10*time.Minute)
 }
 
-// Address
-
-func buildTestAddress(cli *cloapi.Client, t *testing.T) (string, error) {
-	id, err := cli.CreateAddress(context.Background(), getTestProject(), false)
-	if err != nil {
-		return "", err
-	}
-
-	t.Cleanup(func() {
-		t.Logf("Cleanup test address %s", id)
-		if err := destroyTestAddress(id, cli); err != nil {
-			t.Log("Error on cleanup address ", err)
-		}
-	})
-
-	if err := waitAddressState(context.Background(), id, cli, []string{processingIp}, []string{detachedIp}, 10*time.Minute); err != nil {
-		return "", err
-	}
-	return id, nil
-}
-
-func destroyTestAddress(id string, cli *cloapi.Client) error {
-	if err := cli.DeleteAddress(context.Background(), id); err != nil {
-		return err
-	}
-	return waitAddressDeleted(context.Background(), id, cli, 10*time.Minute)
-}
+// NOTE: IP/address acceptance fixtures were intentionally removed. The service
+// forbids deleting an address within 7 days of creation, so a create+destroy test
+// cycle is impossible. The IP resource/data-source code itself is unchanged.
 
 // S3 user
 

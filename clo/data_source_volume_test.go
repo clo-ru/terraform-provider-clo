@@ -34,7 +34,7 @@ func testAccCloVolumeDataSourceBasic() string {
 	return fmt.Sprintf(`resource "clo_disks_volume" "%s"{
 			project_id = "%s"
 			name = "%s"
-			size = 30
+			size = 10
 	}`, dsVolumeName, projectID, dsVolumeName)
 }
 

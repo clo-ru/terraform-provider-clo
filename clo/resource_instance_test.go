@@ -13,10 +13,16 @@ import (
 
 const (
 	serverName = "serv"
-	imageID    = "e96961dd-f038-4726-9330-ad5468ab5a3b"
 )
 
 func TestAccCloInstance_basic(t *testing.T) {
+	skipIfNotAcc(t)
+	cli, err := getTestClient()
+	if err != nil {
+		t.Error("Error get test client ", err)
+	}
+	imageID := getTestImageID(t, cli)
+
 	var server = new(cloapi.Server)
 
 	resource.Test(t, resource.TestCase{
@@ -25,7 +31,7 @@ func TestAccCloInstance_basic(t *testing.T) {
 		CheckDestroy:      testAccCheckInstanceDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloInstanceBasicConf(),
+				Config: testAccCloInstanceBasicConf(imageID),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckInstanceExists(fmt.Sprintf("clo_compute_instance.%s", serverName), server),
 				),
@@ -35,10 +41,12 @@ func TestAccCloInstance_basic(t *testing.T) {
 }
 
 func TestAccCloInstance_withKeypair(t *testing.T) {
+	skipIfNotAcc(t)
 	cli, err := getTestClient()
 	if err != nil {
 		t.Error("Error get test client ", err)
 	}
+	imageID := getTestImageID(t, cli)
 
 	var server = new(cloapi.Server)
 	keypair, err := buildTestKeypair(cli, t)
@@ -52,7 +60,7 @@ func TestAccCloInstance_withKeypair(t *testing.T) {
 		CheckDestroy:      testAccCheckInstanceDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloInstanceWithKeypairConf(keypair),
+				Config: testAccCloInstanceWithKeypairConf(imageID, keypair),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckInstanceExists(fmt.Sprintf("clo_compute_instance.%s", serverName), server),
 				),
@@ -61,7 +69,7 @@ func TestAccCloInstance_withKeypair(t *testing.T) {
 	})
 }
 
-func testAccCloInstanceWithKeypairConf(keypair string) string {
+func testAccCloInstanceWithKeypairConf(imageID, keypair string) string {
 	return fmt.Sprintf(
 		`resource "clo_compute_instance" "%s" {
   				project_id = "%s"
@@ -70,7 +78,7 @@ func testAccCloInstanceWithKeypairConf(keypair string) string {
   				flavor_ram = 4
   				flavor_vcpus = 2
   				block_device{
-   					size = 40
+   					size = 10
    					bootable=true
    					storage_type = "volume"
   				}
@@ -83,7 +91,7 @@ func testAccCloInstanceWithKeypairConf(keypair string) string {
 	}`, serverName, os.Getenv("CLO_API_PROJECT_ID"), serverName, imageID, keypair)
 }
 
-func testAccCloInstanceBasicConf() string {
+func testAccCloInstanceBasicConf(imageID string) string {
 	return fmt.Sprintf(
 		`resource "clo_compute_instance" "%s" {
   				project_id = "%s"
@@ -92,7 +100,7 @@ func testAccCloInstanceBasicConf() string {
   				flavor_ram = 4
   				flavor_vcpus = 2
   				block_device{
-   					size = 40
+   					size = 10
    					bootable=true
    					storage_type = "volume"
   				}

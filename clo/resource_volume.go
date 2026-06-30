@@ -3,14 +3,12 @@ package clo
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
@@ -134,53 +132,25 @@ func resourceVolumeRead(ctx context.Context, d *schema.ResourceData, m interface
 
 // Waiters
 func waitVolumeState(ctx context.Context, id string, cli *cloapi.Client, pending []string, target []string, timeout time.Duration) error {
-	stateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			vol, err := cli.GetVolume(ctx, id)
-			if err != nil {
-				return nil, "", err
-			}
-			return vol, strings.ToUpper(vol.Status), nil
-		},
-		Pending:    pending,
-		Target:     target,
-		Delay:      10 * time.Second,
-		Timeout:    timeout,
-		MinTimeout: 30 * time.Second,
-	}
-	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
-		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
+	return waitForState(ctx, timeout, pending, target, func() (interface{}, string, error) {
+		vol, err := cli.GetVolume(ctx, id)
+		if err != nil {
+			return nil, "", err
 		}
-		return nil
+		return vol, strings.ToUpper(vol.Status), nil
 	})
 }
 
 func waitVolumeDeleted(ctx context.Context, id string, cli *cloapi.Client, timeout time.Duration) error {
-	stateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			vol, err := cli.GetVolume(ctx, id)
-			if cloapi.IsNotFound(err) {
-				return struct{}{}, deletedVolume, nil
-			}
-			if err != nil {
-				return nil, "", err
-			}
-			return vol, strings.ToUpper(vol.Status), nil
-		},
-		Pending:    []string{deletingVolume},
-		Target:     []string{deletedVolume},
-		Delay:      10 * time.Second,
-		Timeout:    timeout,
-		MinTimeout: 30 * time.Second,
-	}
-	return resource.RetryContext(ctx, stateConf.Timeout, func() *resource.RetryError {
-		if _, err := stateConf.WaitForStateContext(ctx); err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
+	return waitForState(ctx, timeout, []string{deletingVolume}, []string{deletedVolume}, func() (interface{}, string, error) {
+		vol, err := cli.GetVolume(ctx, id)
+		if cloapi.IsNotFound(err) {
+			return struct{}{}, deletedVolume, nil
 		}
-		return nil
+		if err != nil {
+			return nil, "", err
+		}
+		return vol, strings.ToUpper(vol.Status), nil
 	})
 }
 
