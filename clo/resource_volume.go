@@ -2,7 +2,7 @@ package clo
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
@@ -39,7 +39,7 @@ func resourceVolume() *schema.Resource {
 		CustomizeDiff: customdiff.All(
 			customdiff.ValidateChange("size", func(ctx context.Context, oldValue, newValue, meta interface{}) error {
 				if newValue.(int) < oldValue.(int) {
-					return fmt.Errorf("size could be increased only")
+					return errors.New("size could be increased only")
 				}
 				return nil
 			})),
@@ -61,7 +61,7 @@ func resourceVolume() *schema.Resource {
 				Required:    true,
 				ValidateFunc: func(i interface{}, s string) (warns []string, errs []error) {
 					if sz := i.(int); sz < 10 {
-						errs = append(errs, fmt.Errorf("size should be at least 10Gb"))
+						errs = append(errs, errors.New("size should be at least 10Gb"))
 					}
 					return
 				},

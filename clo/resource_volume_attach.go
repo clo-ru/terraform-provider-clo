@@ -82,7 +82,7 @@ func resourceVolumeAttachRead(ctx context.Context, d *schema.ResourceData, m int
 func resourceVolumeDetach(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	vid := d.Id()
 	cli := m.(*providerMeta).v3
-	if err := cli.DetachVolume(ctx, vid, true); err != nil {
+	if err := cli.DetachVolume(ctx, vid, true /* force */); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := waitVolumeState(ctx, vid, cli, []string{detachingVolume}, []string{activeVolume}, d.Timeout(schema.TimeoutDelete)); err != nil {

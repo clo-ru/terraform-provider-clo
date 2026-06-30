@@ -2,7 +2,7 @@ package cloapi
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	gen "github.com/clo-ru/cloapi-go-client/v3"
@@ -67,7 +67,7 @@ func (c *Client) CreateVolume(ctx context.Context, p VolumeCreateParams) (string
 		return "", err
 	}
 	if resp.OK == nil || resp.OK.Result == nil {
-		return "", fmt.Errorf("cloapi: empty volume create response")
+		return "", errors.New("cloapi: empty volume create response")
 	}
 	return resp.OK.Result.Id, nil
 }
@@ -79,7 +79,7 @@ func (c *Client) GetVolume(ctx context.Context, id string) (*Volume, error) {
 		return nil, err
 	}
 	if resp.OK == nil || resp.OK.Result == nil {
-		return nil, fmt.Errorf("cloapi: empty volume detail response")
+		return nil, errors.New("cloapi: empty volume detail response")
 	}
 	v := volumeFromSchema(resp.OK.Result)
 	return &v, nil

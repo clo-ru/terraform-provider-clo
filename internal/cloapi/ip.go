@@ -2,7 +2,7 @@ package cloapi
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	gen "github.com/clo-ru/cloapi-go-client/v3"
@@ -63,7 +63,7 @@ func (c *Client) CreateAddress(ctx context.Context, projectID string, ddosProtec
 		return "", err
 	}
 	if resp.OK == nil || resp.OK.Result == nil {
-		return "", fmt.Errorf("cloapi: empty address create response")
+		return "", errors.New("cloapi: empty address create response")
 	}
 	return resp.OK.Result.Id, nil
 }
@@ -75,7 +75,7 @@ func (c *Client) GetAddress(ctx context.Context, id string) (*Address, error) {
 		return nil, err
 	}
 	if resp.OK == nil || resp.OK.Result == nil {
-		return nil, fmt.Errorf("cloapi: empty address detail response")
+		return nil, errors.New("cloapi: empty address detail response")
 	}
 	a := addressFromSchema(resp.OK.Result)
 	return &a, nil

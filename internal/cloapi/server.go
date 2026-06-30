@@ -2,7 +2,7 @@ package cloapi
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	gen "github.com/clo-ru/cloapi-go-client/v3"
@@ -62,13 +62,14 @@ func serverFromSchema(r *gen.ServerSchema) Server {
 	return s
 }
 
-// ServerStorage, ServerAddress and ServerLicense describe a server to create.
+// ServerStorage describes a disk to attach to a server on create.
 type ServerStorage struct {
 	Bootable    bool
 	StorageType string
 	Size        int
 }
 
+// ServerAddress describes an address to attach to a server on create.
 type ServerAddress struct {
 	External       bool
 	Version        int
@@ -77,6 +78,7 @@ type ServerAddress struct {
 	Bandwidth      int
 }
 
+// ServerLicense describes a license to apply to a server on create.
 type ServerLicense struct {
 	Addon string
 	Name  string
@@ -169,7 +171,7 @@ func (c *Client) CreateServer(ctx context.Context, p ServerCreateParams) (string
 		return "", err
 	}
 	if resp.OK == nil || resp.OK.Result == nil {
-		return "", fmt.Errorf("cloapi: empty server create response")
+		return "", errors.New("cloapi: empty server create response")
 	}
 	return resp.OK.Result.Id, nil
 }
@@ -181,7 +183,7 @@ func (c *Client) GetServer(ctx context.Context, id string) (*Server, error) {
 		return nil, err
 	}
 	if resp.OK == nil || resp.OK.Result == nil {
-		return nil, fmt.Errorf("cloapi: empty server detail response")
+		return nil, errors.New("cloapi: empty server detail response")
 	}
 	s := serverFromSchema(resp.OK.Result)
 	return &s, nil

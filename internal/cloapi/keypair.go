@@ -2,7 +2,7 @@ package cloapi
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	gen "github.com/clo-ru/cloapi-go-client/v3"
 )
@@ -17,7 +17,7 @@ func (c *Client) ImportKeypair(ctx context.Context, projectID, name, publicKey s
 		return "", err
 	}
 	if resp.OK == nil || resp.OK.Result == nil {
-		return "", fmt.Errorf("cloapi: empty keypair import response")
+		return "", errors.New("cloapi: empty keypair import response")
 	}
 	return resp.OK.Result.Id, nil
 }

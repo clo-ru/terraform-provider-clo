@@ -2,7 +2,7 @@ package cloapi
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	gen "github.com/clo-ru/cloapi-go-client/v3"
 )
@@ -118,7 +118,7 @@ func (c *Client) CreateS3User(ctx context.Context, p S3UserCreateParams) (string
 		return "", err
 	}
 	if resp.OK == nil || resp.OK.Result == nil {
-		return "", fmt.Errorf("cloapi: empty s3 user create response")
+		return "", errors.New("cloapi: empty s3 user create response")
 	}
 	return resp.OK.Result.Id, nil
 }
@@ -130,7 +130,7 @@ func (c *Client) GetS3User(ctx context.Context, id string) (*S3User, error) {
 		return nil, err
 	}
 	if resp.OK == nil || resp.OK.Result == nil {
-		return nil, fmt.Errorf("cloapi: empty s3 user detail response")
+		return nil, errors.New("cloapi: empty s3 user detail response")
 	}
 	u := s3UserFromSchema(resp.OK.Result)
 	return &u, nil
@@ -196,7 +196,7 @@ func (c *Client) GenS3UserKeys(ctx context.Context, id string) (*S3Keys, error) 
 		return nil, err
 	}
 	if resp.OK == nil || resp.OK.Result == nil {
-		return nil, fmt.Errorf("cloapi: empty s3 keys generate response")
+		return nil, errors.New("cloapi: empty s3 keys generate response")
 	}
 	return &S3Keys{AccessKey: resp.OK.Result.AccessKey, SecretKey: resp.OK.Result.SecretKey}, nil
 }
