@@ -43,7 +43,7 @@ Read-Only:
 - `id` (String)
 - `image` (String)
 - `name` (String)
-- `recipe` (String)
+- `recipe_id` (String)
 - `rescue_mode` (String)
 - `status` (String)
 

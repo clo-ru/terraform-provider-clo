@@ -38,7 +38,7 @@ resource "clo_network_ip" "fip_1" {
 - `created_in` (String) Timestamp the address was created
 - `id` (String) ID of the created address
 - `status` (String)
-- `is_primary` (String) Address used as primary
+- `is_primary` (Boolean) Should the address be used as primary
 
 <a id="nestedblock--timeouts"></a>
 ### Nested Schema for `timeouts`

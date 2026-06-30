@@ -26,7 +26,6 @@ resource "clo_compute_instance" "myserv" {
   }
   addresses {
     version = 4
-    with_floating = true
     external = true
     ddos_protection = false
   }
@@ -82,6 +81,7 @@ Required:
 Optional:
 
 - `address_id` (String) Use an existing IP with a provided ID
+- `bandwidth` (Number) Max address bandwidth, must be 100 or 1024
 
 
 <a id="nestedblock--licenses"></a>
