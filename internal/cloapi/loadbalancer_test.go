@@ -137,6 +137,10 @@ func TestLoadBalancerCreateBody(t *testing.T) {
 			body.Healthmonitor.ExpectedCodes != nil {
 			t.Errorf("non-HTTP healthmonitor should omit http fields: %+v", body.Healthmonitor)
 		}
+		// rules is always sent as an explicit empty list (the API errors on a null rules key).
+		if body.Rules == nil || len(*body.Rules) != 0 {
+			t.Errorf("rules should be an empty non-nil list, got %v", body.Rules)
+		}
 	})
 
 	t.Run("full", func(t *testing.T) {
@@ -145,9 +149,8 @@ func TestLoadBalancerCreateBody(t *testing.T) {
 			Algorithm:          "ROUND_ROBIN",
 			SessionPersistence: boolptr(true),
 			AddressID:          "addr-1",
-			AddressDdos:        boolptr(true),
 			Healthmonitor: HealthmonitorParams{
-				Type: "HTTP", Delay: 10, Timeout: 5, MaxRetries: 3,
+				Type: "HTTP", Delay: 80, Timeout: 15, MaxRetries: 3,
 				HttpMethod: "GET", UrlPath: "/health", ExpectedCodes: "200",
 			},
 		})
@@ -161,8 +164,8 @@ func TestLoadBalancerCreateBody(t *testing.T) {
 		if body.Address == nil || body.Address.Id == nil || *body.Address.Id != "addr-1" {
 			t.Errorf("address id wrong: %+v", body.Address)
 		}
-		if body.Address.DdosProtection == nil || !*body.Address.DdosProtection {
-			t.Errorf("address ddos wrong: %+v", body.Address)
+		if body.Address.DdosProtection != nil {
+			t.Errorf("ddos_protection must be omitted for an existing address id, got %v", *body.Address.DdosProtection)
 		}
 		hm := body.Healthmonitor
 		if hm.HttpMethod == nil || string(*hm.HttpMethod) != "GET" {

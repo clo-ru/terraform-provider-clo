@@ -127,9 +127,38 @@ func destroyTestVolume(volumeId string, cli *cloapi.Client) error {
 	return waitVolumeDeleted(context.Background(), volumeId, cli, 10*time.Minute)
 }
 
-// NOTE: IP/address acceptance fixtures were intentionally removed. The service
-// forbids deleting an address within 7 days of creation, so a create+destroy test
-// cycle is impossible. The IP resource/data-source code itself is unchanged.
+// Address
+//
+// NOTE: the service forbids deleting an address within 7 days of creation, so
+// destroyTestAddress (and any create+destroy lifecycle over an address) will fail
+// to delete and the address lingers, locked, for 7 days. Cleanup logs the error
+// and continues; callers accept the leak.
+
+func buildTestAddress(cli *cloapi.Client, t *testing.T) (string, error) {
+	id, err := cli.CreateAddress(context.Background(), getTestProject(), false)
+	if err != nil {
+		return "", err
+	}
+
+	t.Cleanup(func() {
+		t.Logf("Cleanup test address %s", id)
+		if err := destroyTestAddress(id, cli); err != nil {
+			t.Log("Error on cleanup address ", err)
+		}
+	})
+
+	if err := waitAddressState(context.Background(), id, cli, []string{processingIp}, []string{detachedIp}, 10*time.Minute); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func destroyTestAddress(id string, cli *cloapi.Client) error {
+	if err := cli.DeleteAddress(context.Background(), id); err != nil {
+		return err
+	}
+	return waitAddressDeleted(context.Background(), id, cli, 10*time.Minute)
+}
 
 // S3 user
 

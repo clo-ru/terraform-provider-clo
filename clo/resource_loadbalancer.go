@@ -98,17 +98,17 @@ func resourceLoadBalancer() *schema.Resource {
 							Required:    true,
 						},
 						"delay": {
-							Description: "Seconds between health checks",
+							Description: "Seconds between health checks (interval; minimum 80)",
 							Type:        schema.TypeInt,
 							Required:    true,
 						},
 						"timeout": {
-							Description: "Seconds to wait for a health-check response",
+							Description: "Seconds to wait for a health-check response (minimum 15)",
 							Type:        schema.TypeInt,
 							Required:    true,
 						},
 						"max_retries": {
-							Description: "Failed checks before a backend is marked down",
+							Description: "Failed checks before a backend is marked down (1-10)",
 							Type:        schema.TypeInt,
 							Required:    true,
 						},
@@ -306,12 +306,15 @@ func buildLoadBalancerCreateParams(d *schema.ResourceData) cloapi.LoadBalancerCr
 		list := v.([]interface{})
 		if len(list) > 0 && list[0] != nil {
 			m := list[0].(map[string]interface{})
-			if id, ok := m["id"].(string); ok {
-				p.AddressID = id
-			}
-			if ddos, ok := m["ddos_protection"].(bool); ok {
-				dd := ddos
-				p.AddressDdos = &dd
+			id, _ := m["id"].(string)
+			p.AddressID = id
+			// ddos_protection applies only when allocating a new address; the API
+			// rejects it alongside an existing address id.
+			if id == "" {
+				if ddos, ok := m["ddos_protection"].(bool); ok {
+					dd := ddos
+					p.AddressDdos = &dd
+				}
 			}
 		}
 	}

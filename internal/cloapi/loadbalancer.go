@@ -163,6 +163,15 @@ func loadBalancerCreateBody(p LoadBalancerCreateParams) gen.LoadBalancerCreateJS
 			body.Address.Id = &v
 		}
 	}
+
+	// The API derives a rule quota from this field and errors on a missing
+	// (null) rules key; rules are managed as standalone resources, so always
+	// send an explicit empty list.
+	body.Rules = &[]struct {
+		AddressId            string `json:"address_id"`
+		ExternalProtocolPort int    `json:"external_protocol_port"`
+		InternalProtocolPort int    `json:"internal_protocol_port"`
+	}{}
 	return body
 }
 
