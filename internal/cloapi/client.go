@@ -2,7 +2,7 @@
 // (github.com/clo-ru/cloapi-go-client/v3). Resources and data sources call the
 // stable methods defined here instead of the generated client directly, so that
 // changes to generated names/shapes are absorbed in this one package rather than
-// rippling across every resource. See V3_MIGRATION_SCOPE.md.
+// rippling across every resource.
 package cloapi
 
 import gen "github.com/clo-ru/cloapi-go-client/v3"

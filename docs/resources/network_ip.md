@@ -35,6 +35,7 @@ resource "clo_network_ip" "fip_1" {
 ### Read-Only
 
 - `address` (String) String representation of the address
+- `bandwidth` (Number) Maximum address bandwidth on mbps
 - `created_in` (String) Timestamp the address was created
 - `id` (String) ID of the created address
 - `status` (String)

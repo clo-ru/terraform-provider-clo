@@ -27,7 +27,7 @@ func dataSourceVolumes() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"id": {
-							Description: "ID of the user",
+							Description: "ID of the volume",
 							Type:        schema.TypeString, Computed: true},
 						"name": {
 							Description: "Human-readable name of the volume",
