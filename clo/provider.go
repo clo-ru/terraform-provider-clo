@@ -41,6 +41,7 @@ func Provider() *schema.Provider {
 			"clo_storage_s3_user":      resourceS3User(),
 			"clo_storage_s3_user_keys": resourceS3UserKeys(),
 			"clo_compute_keypair":      resourceKeypair(),
+			"clo_network_vrouter":      resourceVrouter(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"clo_projects":             dataSourceProjects(),
@@ -59,6 +60,7 @@ func Provider() *schema.Provider {
 			"clo_storage_s3_user":      dataSourceS3User(),
 			"clo_storage_s3_users":     dataSourceS3Users(),
 			"clo_storage_s3_user_keys": dataSourceS3Keys(),
+			"clo_network_vrouters":     dataSourceVrouters(),
 		},
 	}
 }
