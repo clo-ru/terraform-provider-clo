@@ -37,7 +37,7 @@ Read-Only:
 
 - `addresses` (List of String)
 - `created_in` (String)
-- `disk_data` (List of Object) (see [below for nested schema](#nestedobjatt--results--disk_data))
+- `disk_data` (List of Object) (see [below for nested schema](#nestedobjatt--result--disk_data))
 - `flavor_ram` (Number)
 - `flavor_vcpus` (Number)
 - `id` (String)
@@ -47,8 +47,7 @@ Read-Only:
 - `rescue_mode` (String)
 - `status` (String)
 
-
-<a id="nestedobjatt--results--disk_data"></a>
+<a id="nestedobjatt--result--disk_data"></a>
 ### Nested Schema for `result.disk_data`
 
 Read-Only:

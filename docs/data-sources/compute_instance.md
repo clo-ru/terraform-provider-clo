@@ -27,7 +27,7 @@ data "clo_compute_instance" "myserv" {
 
 ### Read-Only
 
-- `addresses` (List of Strings) List of attached addresses
+- `addresses` (List of String) Information about addresses attached to the instance
 - `created_in` (String) Timestamp the instance was created
 - `disk_data` (List of Object) Information about disks attached to the instance (see [below for nested schema](#nestedatt--disk_data))
 - `flavor_ram` (Number) Amount of RAM of the instance
@@ -39,7 +39,6 @@ data "clo_compute_instance" "myserv" {
 - `recipe` (String) ID of the recipe that was installed on the instance
 - `rescue_mode` (String) Describes is the instance in rescue mode
 - `status` (String) Current status of the instance
-
 
 <a id="nestedatt--disk_data"></a>
 ### Nested Schema for `disk_data`

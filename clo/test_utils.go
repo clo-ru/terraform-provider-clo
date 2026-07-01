@@ -40,6 +40,25 @@ func getTestImageID(t *testing.T, cli *cloapi.Client) string {
 	return images[0].ID
 }
 
+// getTestRecipe resolves a recipe usable in the test project: one that exposes at
+// least one suitable image, so an instance can actually be created from it. It
+// returns the recipe (for its name and flavor minimums) and a compatible image ID.
+// Recipes are environment-specific, so the test is skipped when none qualifies.
+func getTestRecipe(t *testing.T, cli *cloapi.Client) (cloapi.Recipe, string) {
+	t.Helper()
+	recipes, err := cli.ListRecipes(context.Background(), getTestProject())
+	if err != nil {
+		t.Fatalf("list recipes: %v", err)
+	}
+	for _, r := range recipes {
+		if len(r.SuitableImages) > 0 {
+			return r, r.SuitableImages[0]
+		}
+	}
+	t.Skip("no recipe with a suitable image in the test project; skipping recipe chain test")
+	return cloapi.Recipe{}, ""
+}
+
 // Server
 func buildTestServer(cli *cloapi.Client, t *testing.T) (string, error) {
 	id, err := cli.CreateServer(context.Background(), cloapi.ServerCreateParams{

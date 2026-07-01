@@ -38,8 +38,8 @@ resource "clo_network_ip" "fip_1" {
 - `bandwidth` (Number) Maximum address bandwidth on mbps
 - `created_in` (String) Timestamp the address was created
 - `id` (String) ID of the created address
-- `status` (String)
 - `is_primary` (Boolean) Should the address be used as primary
+- `status` (String)
 
 <a id="nestedblock--timeouts"></a>
 ### Nested Schema for `timeouts`
