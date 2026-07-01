@@ -42,6 +42,7 @@ func Provider() *schema.Provider {
 			"clo_storage_s3_user_keys": resourceS3UserKeys(),
 			"clo_compute_keypair":      resourceKeypair(),
 			"clo_network_vrouter":      resourceVrouter(),
+			"clo_network_loadbalancer": resourceLoadBalancer(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"clo_projects":             dataSourceProjects(),
