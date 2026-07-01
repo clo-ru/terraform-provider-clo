@@ -3,12 +3,12 @@
 page_title: "clo_compute_instance Resource - terraform-provider-clo"
 subcategory: ""
 description: |-
-  Create a new instance in the project
+  Project compute instance
 ---
 
 # clo_compute_instance (Resource)
 
-Create a new instance in the project
+Project compute instance
 
 ## Example Usage
 

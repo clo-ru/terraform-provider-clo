@@ -30,7 +30,7 @@ data "clo_storage_s3_users" "all_s3users" {
 - `id` (String) The ID of this resource.
 - `result` (List of Object) The object that holds the results (see [below for nested schema](#nestedatt--result))
 
-<a id="nestedatt--results"></a>
+<a id="nestedatt--result"></a>
 ### Nested Schema for `result`
 
 Read-Only:
@@ -39,12 +39,12 @@ Read-Only:
 - `id` (String)
 - `max_buckets` (Number)
 - `name` (String)
-- `quotas` (List of Object) (see [below for nested schema](#nestedobjatt--results--quotas))
+- `quotas` (List of Object) (see [below for nested schema](#nestedobjatt--result--quotas))
 - `status` (String)
 - `tenant` (String)
 
-<a id="nestedobjatt--results--quotas"></a>
-### Nested Schema for `results.quotas`
+<a id="nestedobjatt--result--quotas"></a>
+### Nested Schema for `result.quotas`
 
 Read-Only:
 

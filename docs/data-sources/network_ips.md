@@ -36,7 +36,7 @@ data "clo_network_ips" "all_addresses" {
 Read-Only:
 
 - `address` (String)
-- `attached_to` (List of Object) (see [below for nested schema](#nestedobjatt--results--attached_to))
+- `attached_to` (List of Object) (see [below for nested schema](#nestedobjatt--result--attached_to))
 - `created_in` (String)
 - `ddos_protection` (Boolean)
 - `id` (String)
@@ -45,7 +45,7 @@ Read-Only:
 - `status` (String)
 - `type` (String)
 
-<a id="nestedobjatt--results--attached_to"></a>
+<a id="nestedobjatt--result--attached_to"></a>
 ### Nested Schema for `result.attached_to`
 
 Read-Only:

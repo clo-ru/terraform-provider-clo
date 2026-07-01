@@ -40,6 +40,25 @@ func getTestImageID(t *testing.T, cli *cloapi.Client) string {
 	return images[0].ID
 }
 
+// getTestRecipe resolves a recipe usable in the test project: one that exposes at
+// least one suitable image, so an instance can actually be created from it. It
+// returns the recipe (for its name and flavor minimums) and a compatible image ID.
+// Recipes are environment-specific, so the test is skipped when none qualifies.
+func getTestRecipe(t *testing.T, cli *cloapi.Client) (cloapi.Recipe, string) {
+	t.Helper()
+	recipes, err := cli.ListRecipes(context.Background(), getTestProject())
+	if err != nil {
+		t.Fatalf("list recipes: %v", err)
+	}
+	for _, r := range recipes {
+		if len(r.SuitableImages) > 0 {
+			return r, r.SuitableImages[0]
+		}
+	}
+	t.Skip("no recipe with a suitable image in the test project; skipping recipe chain test")
+	return cloapi.Recipe{}, ""
+}
+
 // Server
 func buildTestServer(cli *cloapi.Client, t *testing.T) (string, error) {
 	id, err := cli.CreateServer(context.Background(), cloapi.ServerCreateParams{
@@ -108,9 +127,38 @@ func destroyTestVolume(volumeId string, cli *cloapi.Client) error {
 	return waitVolumeDeleted(context.Background(), volumeId, cli, 10*time.Minute)
 }
 
-// NOTE: IP/address acceptance fixtures were intentionally removed. The service
-// forbids deleting an address within 7 days of creation, so a create+destroy test
-// cycle is impossible. The IP resource/data-source code itself is unchanged.
+// Address
+//
+// NOTE: the service forbids deleting an address within 7 days of creation, so
+// destroyTestAddress (and any create+destroy lifecycle over an address) will fail
+// to delete and the address lingers, locked, for 7 days. Cleanup logs the error
+// and continues; callers accept the leak.
+
+func buildTestAddress(cli *cloapi.Client, t *testing.T) (string, error) {
+	id, err := cli.CreateAddress(context.Background(), getTestProject(), false)
+	if err != nil {
+		return "", err
+	}
+
+	t.Cleanup(func() {
+		t.Logf("Cleanup test address %s", id)
+		if err := destroyTestAddress(id, cli); err != nil {
+			t.Log("Error on cleanup address ", err)
+		}
+	})
+
+	if err := waitAddressState(context.Background(), id, cli, []string{processingIp}, []string{detachedIp}, 10*time.Minute); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func destroyTestAddress(id string, cli *cloapi.Client) error {
+	if err := cli.DeleteAddress(context.Background(), id); err != nil {
+		return err
+	}
+	return waitAddressDeleted(context.Background(), id, cli, 10*time.Minute)
+}
 
 // S3 user
 
