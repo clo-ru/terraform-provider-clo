@@ -127,8 +127,9 @@ type RuleCreateParams struct {
 	InternalProtocolPort int
 }
 
-// CreateLoadBalancer creates a load balancer in the project and returns its ID.
-func (c *Client) CreateLoadBalancer(ctx context.Context, projectID string, p LoadBalancerCreateParams) (string, error) {
+// loadBalancerCreateBody builds the create request body, sending optional fields
+// (algorithm, address) only when set. Healthmonitor is always sent as the API requires it.
+func loadBalancerCreateBody(p LoadBalancerCreateParams) gen.LoadBalancerCreateJSONRequestBody {
 	body := gen.LoadBalancerCreateJSONRequestBody{
 		Name:               p.Name,
 		SessionPersistence: p.SessionPersistence,
@@ -162,8 +163,12 @@ func (c *Client) CreateLoadBalancer(ctx context.Context, projectID string, p Loa
 			body.Address.Id = &v
 		}
 	}
+	return body
+}
 
-	resp, err := c.gen.LoadBalancerCreateWithResponse(ctx, projectID, body)
+// CreateLoadBalancer creates a load balancer in the project and returns its ID.
+func (c *Client) CreateLoadBalancer(ctx context.Context, projectID string, p LoadBalancerCreateParams) (string, error) {
+	resp, err := c.gen.LoadBalancerCreateWithResponse(ctx, projectID, loadBalancerCreateBody(p))
 	if err != nil {
 		return "", err
 	}
@@ -221,8 +226,9 @@ func (c *Client) UpdateLoadBalancer(ctx context.Context, id, algorithm string, s
 	return err
 }
 
-// UpdateHealthmonitor replaces the load balancer's health-check configuration.
-func (c *Client) UpdateHealthmonitor(ctx context.Context, id string, p HealthmonitorParams) error {
+// healthmonitorUpdateBody builds the health-monitor update body, sending the
+// HTTP-only fields (http_method, url_path, expected_codes) only when set.
+func healthmonitorUpdateBody(p HealthmonitorParams) gen.LoadBalancerUpdateHealthmonitorJSONRequestBody {
 	body := gen.LoadBalancerUpdateHealthmonitorJSONRequestBody{
 		Type:       gen.LoadBalancerUpdateHealthmonitorJSONBodyType(p.Type),
 		Delay:      p.Delay,
@@ -239,7 +245,12 @@ func (c *Client) UpdateHealthmonitor(ctx context.Context, id string, p Healthmon
 	if v := p.ExpectedCodes; v != "" {
 		body.ExpectedCodes = &v
 	}
-	_, err := c.gen.LoadBalancerUpdateHealthmonitorWithResponse(ctx, id, body)
+	return body
+}
+
+// UpdateHealthmonitor replaces the load balancer's health-check configuration.
+func (c *Client) UpdateHealthmonitor(ctx context.Context, id string, p HealthmonitorParams) error {
+	_, err := c.gen.LoadBalancerUpdateHealthmonitorWithResponse(ctx, id, healthmonitorUpdateBody(p))
 	return err
 }
 
