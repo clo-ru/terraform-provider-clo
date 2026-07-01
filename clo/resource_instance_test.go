@@ -2,24 +2,28 @@ package clo
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	cloTools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
-	"github.com/clo-ru/cloapi-go-client/v2/services/servers"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"os"
 	"testing"
+
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
 const (
 	serverName = "serv"
-	imageID    = "e96961dd-f038-4726-9330-ad5468ab5a3b"
 )
 
 func TestAccCloInstance_basic(t *testing.T) {
-	var server = new(servers.Server)
+	skipIfNotAcc(t)
+	cli, err := getTestClient()
+	if err != nil {
+		t.Error("Error get test client ", err)
+	}
+	imageID := getTestImageID(t, cli)
+
+	var server = new(cloapi.Server)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccCloPreCheck(t) },
@@ -27,7 +31,7 @@ func TestAccCloInstance_basic(t *testing.T) {
 		CheckDestroy:      testAccCheckInstanceDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloInstanceBasicConf(),
+				Config: testAccCloInstanceBasicConf(imageID),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckInstanceExists(fmt.Sprintf("clo_compute_instance.%s", serverName), server),
 				),
@@ -37,12 +41,14 @@ func TestAccCloInstance_basic(t *testing.T) {
 }
 
 func TestAccCloInstance_withKeypair(t *testing.T) {
+	skipIfNotAcc(t)
 	cli, err := getTestClient()
 	if err != nil {
 		t.Error("Error get test client ", err)
 	}
+	imageID := getTestImageID(t, cli)
 
-	var server = new(servers.Server)
+	var server = new(cloapi.Server)
 	keypair, err := buildTestKeypair(cli, t)
 	if err != nil {
 		t.Error("Error get test client ", err)
@@ -54,7 +60,7 @@ func TestAccCloInstance_withKeypair(t *testing.T) {
 		CheckDestroy:      testAccCheckInstanceDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloInstanceWithKeypairConf(keypair),
+				Config: testAccCloInstanceWithKeypairConf(imageID, keypair),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckInstanceExists(fmt.Sprintf("clo_compute_instance.%s", serverName), server),
 				),
@@ -63,16 +69,16 @@ func TestAccCloInstance_withKeypair(t *testing.T) {
 	})
 }
 
-func testAccCloInstanceWithKeypairConf(keypair string) string {
+func testAccCloInstanceWithKeypairConf(imageID, keypair string) string {
 	return fmt.Sprintf(
 		`resource "clo_compute_instance" "%s" {
-  				project_id = "%s" 
+  				project_id = "%s"
   				name = "%s"
   				image_id = "%s"
   				flavor_ram = 4
   				flavor_vcpus = 2
   				block_device{
-   					size = 40
+   					size = 10
    					bootable=true
    					storage_type = "volume"
   				}
@@ -85,16 +91,16 @@ func testAccCloInstanceWithKeypairConf(keypair string) string {
 	}`, serverName, os.Getenv("CLO_API_PROJECT_ID"), serverName, imageID, keypair)
 }
 
-func testAccCloInstanceBasicConf() string {
+func testAccCloInstanceBasicConf(imageID string) string {
 	return fmt.Sprintf(
 		`resource "clo_compute_instance" "%s" {
-  				project_id = "%s" 
+  				project_id = "%s"
   				name = "%s"
   				image_id = "%s"
   				flavor_ram = 4
   				flavor_vcpus = 2
   				block_device{
-   					size = 40
+   					size = 10
    					bootable=true
    					storage_type = "volume"
   				}
@@ -106,7 +112,7 @@ func testAccCloInstanceBasicConf() string {
 	}`, serverName, os.Getenv("CLO_API_PROJECT_ID"), serverName, imageID)
 }
 
-func testAccCheckInstanceExists(n string, serverItem *servers.Server) resource.TestCheckFunc {
+func testAccCheckInstanceExists(n string, serverItem *cloapi.Server) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
 		rs, ok := state.RootModule().Resources[n]
 		if !ok {
@@ -115,31 +121,27 @@ func testAccCheckInstanceExists(n string, serverItem *servers.Server) resource.T
 		if rs.Primary.ID == "" {
 			return fmt.Errorf("server with ID is not set")
 		}
-		cli := testAccProvider.Meta().(*clo_lib.ApiClient)
-		req := servers.ServerDetailRequest{ServerID: rs.Primary.ID}
-		resp, e := req.Do(context.Background(), cli)
+		cli := testAccProvider.Meta().(*providerMeta).v3
+		srv, e := cli.GetServer(context.Background(), rs.Primary.ID)
 		if e != nil {
 			return e
 		}
-		*serverItem = resp.Result
+		*serverItem = *srv
 		return nil
 	}
 }
 
 func testAccCheckInstanceDestroy(st *terraform.State) error {
-	cli := testAccProvider.Meta().(*clo_lib.ApiClient)
+	cli := testAccProvider.Meta().(*providerMeta).v3
 	for _, rs := range st.RootModule().Resources {
 		if rs.Type != "clo_compute_instance" {
 			continue
 		}
-		req := servers.ServerDetailRequest{ServerID: rs.Primary.ID}
-		_, e := req.Do(context.Background(), cli)
+		_, e := cli.GetServer(context.Background(), rs.Primary.ID)
 		if e == nil {
 			return fmt.Errorf("clo instance %s still exists", rs.Primary.ID)
 		}
-
-		apiError := cloTools.DefaultError{}
-		if errors.As(e, &apiError) && apiError.Code == 404 {
+		if cloapi.IsNotFound(e) {
 			return nil
 		}
 		return e

@@ -3,14 +3,14 @@ package clo
 import (
 	"context"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	"github.com/clo-ru/cloapi-go-client/v2/services/storage"
+	"testing"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"testing"
 )
 
 func TestAccCloS3UserKeys_basic(t *testing.T) {
+	skipIfNotAcc(t)
 	cli, err := getTestClient()
 	if err != nil {
 		t.Error("Error get test client ", err)
@@ -51,18 +51,14 @@ func testAccCheckS3KeysExists(n string, serverId string) resource.TestCheckFunc 
 		if rs.Primary.ID == "" {
 			return fmt.Errorf("volume with ID is not set")
 		}
-		cli := testAccProvider.Meta().(*clo_lib.ApiClient)
-		req := storage.S3KeysGetRequest{UserID: rs.Primary.ID}
-		resp, e := req.Do(context.Background(), cli)
-
+		cli := testAccProvider.Meta().(*providerMeta).v3
+		accessKey, e := cli.GetS3UserAccessKey(context.Background(), rs.Primary.ID)
 		if e != nil {
 			return e
 		}
-
-		if len(resp.Result) != 1 {
-			return fmt.Errorf("Invalid s3 user keys %v", resp.Result)
+		if accessKey == "" {
+			return fmt.Errorf("no s3 user access key returned")
 		}
-
 		return nil
 	}
 }

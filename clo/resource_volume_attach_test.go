@@ -3,14 +3,14 @@ package clo
 import (
 	"context"
 	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	"github.com/clo-ru/cloapi-go-client/v2/services/disks"
+	"testing"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"testing"
 )
 
 func TestAccCloVolumeAttach_basic(t *testing.T) {
+	skipIfNotAcc(t)
 	cli, err := getTestClient()
 	if err != nil {
 		t.Error("Error get test client ", err)
@@ -57,40 +57,32 @@ func testAccCheckVolumeAttachExists(n string, serverId string) resource.TestChec
 		if rs.Primary.ID == "" {
 			return fmt.Errorf("volume with ID is not set")
 		}
-		cli := testAccProvider.Meta().(*clo_lib.ApiClient)
-		req := disks.VolumeDetailRequest{VolumeID: rs.Primary.ID}
-		resp, e := req.Do(context.Background(), cli)
-
+		cli := testAccProvider.Meta().(*providerMeta).v3
+		vol, e := cli.GetVolume(context.Background(), rs.Primary.ID)
 		if e != nil {
 			return e
 		}
-
-		if resp.Result.Attachment == nil || resp.Result.Attachment.ID != serverId {
-			return fmt.Errorf("Invalid volume attachment %v", resp.Result.Attachment)
+		if vol.Attachment == nil || vol.Attachment.ID != serverId {
+			return fmt.Errorf("invalid volume attachment %v", vol.Attachment)
 		}
-
 		return nil
 	}
 }
 
 func testAccCheckVolumeAttachDestroy(st *terraform.State) error {
-	cli := testAccProvider.Meta().(*clo_lib.ApiClient)
+	cli := testAccProvider.Meta().(*providerMeta).v3
 	for _, rs := range st.RootModule().Resources {
 		if rs.Type != "clo_disks_volume_attach" {
 			continue
 		}
-		req := disks.VolumeDetailRequest{VolumeID: rs.Primary.ID}
-		resp, e := req.Do(context.Background(), cli)
-
+		vol, e := cli.GetVolume(context.Background(), rs.Primary.ID)
 		if e != nil {
 			return e
 		}
-
-		if resp.Result.Attachment != nil {
-			return fmt.Errorf("Attachmend not deleted")
+		if vol.Attachment != nil {
+			return fmt.Errorf("attachment not deleted")
 		}
-
-		return e
+		return nil
 	}
 	return nil
 }

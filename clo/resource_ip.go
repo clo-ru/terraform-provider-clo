@@ -2,15 +2,11 @@ package clo
 
 import (
 	"context"
-	"errors"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	clo_tools "github.com/clo-ru/cloapi-go-client/v2/clo/request_tools"
-	clo_ip "github.com/clo-ru/cloapi-go-client/v2/services/ip"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"log"
 	"time"
+
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 const (
@@ -82,29 +78,22 @@ func resourceIp() *schema.Resource {
 }
 
 func resourceIpCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v3
 
-	req := clo_ip.AddressCreateRequest{
-		ProjectID: d.Get("project_id").(string),
-	}
-	if n, ok := d.GetOk("ddos_protection"); ok {
-		req.Body = clo_ip.AddressCreateBody{DdosProtection: n.(bool)}
+	id, err := cli.CreateAddress(ctx, d.Get("project_id").(string), d.Get("ddos_protection").(bool))
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
-	}
+	d.SetId(id)
 
-	d.SetId(resp.Result.ID)
-
-	if _, err := waitAddressState(ctx, resp.Result.ID, cli, []string{processingIp}, []string{detachedIp}, d.Timeout(schema.TimeoutCreate)); err != nil {
-		return diag.FromErr(e)
+	if err := waitAddressState(ctx, id, cli, []string{processingIp}, []string{detachedIp}, d.Timeout(schema.TimeoutCreate)); err != nil {
+		return diag.FromErr(err)
 	}
 
 	if v, ok := d.GetOk("ptr"); ok {
-		if err := changeAddressPtr(ctx, d, v.(string), cli); err != nil {
-			return diag.FromErr(e)
+		if err := cli.ChangeAddressPtr(ctx, id, v.(string)); err != nil {
+			return diag.FromErr(err)
 		}
 	}
 
@@ -112,41 +101,39 @@ func resourceIpCreate(ctx context.Context, d *schema.ResourceData, m interface{}
 }
 
 func resourceIpRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	fipId := d.Id()
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v3
 
-	req := clo_ip.AddressDetailRequest{AddressID: fipId}
-	resp, err := req.Do(ctx, cli)
+	addr, err := cli.GetAddress(ctx, d.Id())
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	if e := d.Set("id", resp.Result.ID); e != nil {
+	if e := d.Set("id", addr.ID); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("status", resp.Result.Status); e != nil {
+	if e := d.Set("status", addr.Status); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("address", resp.Result.Address); e != nil {
+	if e := d.Set("address", addr.Address); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("created_in", resp.Result.CreatedIn); e != nil {
+	if e := d.Set("created_in", addr.CreatedIn); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("bandwidth", resp.Result.Bandwidth); e != nil {
+	if e := d.Set("bandwidth", addr.Bandwidth); e != nil {
 		return diag.FromErr(e)
 	}
-	if e := d.Set("is_primary", resp.Result.IsPrimary); e != nil {
+	if e := d.Set("is_primary", addr.IsPrimary); e != nil {
 		return diag.FromErr(e)
 	}
 	return nil
 }
 
 func resourceIpUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
+	cli := m.(*providerMeta).v3
 	if d.HasChange("ptr") {
 		_, c := d.GetChange("ptr")
-		if err := changeAddressPtr(ctx, d, c.(string), cli); err != nil {
+		if err := cli.ChangeAddressPtr(ctx, d.Id(), c.(string)); err != nil {
 			return diag.FromErr(err)
 		}
 	}
@@ -154,78 +141,36 @@ func resourceIpUpdate(ctx context.Context, d *schema.ResourceData, m interface{}
 }
 
 func resourceIpDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	cli := m.(*clo_lib.ApiClient)
-	req := clo_ip.AddressDeleteRequest{AddressID: d.Id()}
-	if e := req.Do(ctx, cli); e != nil {
-		return diag.FromErr(e)
+	cli := m.(*providerMeta).v3
+	if err := cli.DeleteAddress(ctx, d.Id()); err != nil {
+		return diag.FromErr(err)
 	}
-	if err := waitAddressDeleted(ctx, d.Id(), cli, d.Timeout(deletedIp)); err != nil {
+	if err := waitAddressDeleted(ctx, d.Id(), cli, d.Timeout(schema.TimeoutDelete)); err != nil {
 		return diag.FromErr(err)
 	}
 	return nil
 }
 
 // Waiters
-func waitAddressState(ctx context.Context, id string, cli *clo_lib.ApiClient, pending []string, target []string, timeout time.Duration) (*clo_ip.AddressDetailResponse, error) {
-	var resp *clo_ip.AddressDetailResponse
-	createStateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_ip.AddressDetailRequest{AddressID: id}
-			resp, err = req.Do(ctx, cli)
-			return resp, resp.Result.Status, err
-		},
-		Pending:    pending,
-		Target:     target,
-		Delay:      10 * time.Second,
-		Timeout:    timeout,
-		MinTimeout: 30 * time.Second,
-	}
-	err := resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
-		_, err := createStateConf.WaitForStateContext(ctx)
+func waitAddressState(ctx context.Context, id string, cli *cloapi.Client, pending []string, target []string, timeout time.Duration) error {
+	return waitForState(ctx, timeout, pending, target, func() (interface{}, string, error) {
+		addr, err := cli.GetAddress(ctx, id)
 		if err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
+			return nil, "", err
 		}
-		return nil
-	})
-	return resp, err
-}
-
-func waitAddressDeleted(ctx context.Context, id string, cli *clo_lib.ApiClient, timeout time.Duration) error {
-	createStateConf := resource.StateChangeConf{
-		Refresh: func() (result interface{}, state string, err error) {
-			req := clo_ip.AddressDetailRequest{AddressID: id}
-			resp, err := req.Do(ctx, cli)
-
-			apiError := clo_tools.DefaultError{}
-			resState := resp.Result.Status
-			if errors.As(err, &apiError) && apiError.Code == 404 {
-				resState = deletedIp
-				err = nil
-			}
-			return resp.Result, resState, err
-		},
-		Pending:    []string{processingIp},
-		Target:     []string{deletedIp},
-		Delay:      10 * time.Second,
-		Timeout:    timeout,
-		MinTimeout: 30 * time.Second,
-	}
-	return resource.RetryContext(ctx, createStateConf.Timeout, func() *resource.RetryError {
-		_, err := createStateConf.WaitForStateContext(ctx)
-		if err != nil {
-			log.Printf("[DEBUG] Retrying after error: %s", err)
-			return &resource.RetryError{Err: err}
-		}
-		return nil
+		return addr, addr.Status, nil
 	})
 }
 
-// Api actions
-func changeAddressPtr(ctx context.Context, d *schema.ResourceData, prt string, cli *clo_lib.ApiClient) error {
-	req := clo_ip.AddressPtrChangeRequest{
-		AddressID: d.Id(),
-		Body:      clo_ip.AddressPtrChangeBody{Value: prt},
-	}
-	return req.Do(ctx, cli)
+func waitAddressDeleted(ctx context.Context, id string, cli *cloapi.Client, timeout time.Duration) error {
+	return waitForState(ctx, timeout, []string{processingIp}, []string{deletedIp}, func() (interface{}, string, error) {
+		addr, err := cli.GetAddress(ctx, id)
+		if cloapi.IsNotFound(err) {
+			return struct{}{}, deletedIp, nil
+		}
+		if err != nil {
+			return nil, "", err
+		}
+		return addr, addr.Status, nil
+	})
 }

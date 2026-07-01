@@ -2,8 +2,7 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	clo_project "github.com/clo-ru/cloapi-go-client/v2/services/project"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -48,35 +47,29 @@ func dataSourceImage() *schema.Resource {
 }
 
 func dataSourceImageRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*clo_lib.ApiClient)
-	req := clo_project.ImageListRequest{
-		ProjectID: d.Get("project_id").(string),
+	cli := m.(*providerMeta).v3
+	images, err := cli.ListImages(ctx, d.Get("project_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	n := d.Get("name").(string)
-	for _, r := range resp.Result {
-		if r.Name == n {
-			if e := d.Set("image_id", r.ID); e != nil {
+	name := d.Get("name").(string)
+	for _, im := range images {
+		if im.Name != name {
+			continue
+		}
+		fields := map[string]interface{}{
+			"image_id":        im.ID,
+			"os_distribution": im.OSDistribution,
+			"os_version":      im.OSVersion,
+			"os_family":       im.OSFamily,
+		}
+		for k, v := range fields {
+			if e := d.Set(k, v); e != nil {
 				return diag.FromErr(e)
 			}
-			if osSystem := r.OperationSystem; osSystem != nil {
-				if e := d.Set("os_distribution", osSystem.Distribution); e != nil {
-					return diag.FromErr(e)
-				}
-				if e := d.Set("os_version", osSystem.Version); e != nil {
-					return diag.FromErr(e)
-				}
-				if e := d.Set("os_family", osSystem.OsFamily); e != nil {
-					return diag.FromErr(e)
-				}
-			}
-			break
 		}
-		d.SetId(r.ID)
+		d.SetId(im.ID)
+		break
 	}
-	return diags
+	return nil
 }

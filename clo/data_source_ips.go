@@ -2,12 +2,12 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	clo_ip "github.com/clo-ru/cloapi-go-client/v2/services/ip"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
 	"time"
+
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func dataSourceIPs() *schema.Resource {
@@ -70,40 +70,32 @@ func dataSourceIPs() *schema.Resource {
 }
 
 func dataSourceIPsRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*clo_lib.ApiClient)
-	req := clo_ip.AddressListRequest{
-		ProjectID: d.Get("project_id").(string),
+	cli := m.(*providerMeta).v3
+	addresses, err := cli.ListAddresses(ctx, d.Get("project_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("result", flattenIpsResults(resp.Result)); e != nil {
+	if e := d.Set("result", flattenIpsResults(addresses)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return nil
 }
 
-func flattenIpsResults(pr []clo_ip.Address) []interface{} {
-	lpr := len(pr)
-	if lpr > 0 {
-		res := make([]interface{}, lpr, lpr)
-		for i, p := range pr {
-			ri := make(map[string]interface{})
-			ri["id"] = p.ID
-			ri["ptr"] = p.Ptr
-			ri["type"] = p.Type
-			ri["status"] = p.Status
-			ri["address"] = p.Address
-			ri["created_in"] = p.CreatedIn
-			ri["is_primary"] = p.IsPrimary
-			ri["ddos_protection"] = p.DdosProtection
-			ri["attached_to"] = formatAttachedTo(p.AttachedTo)
-			res[i] = ri
-		}
-		return res
+func flattenIpsResults(pr []cloapi.Address) []interface{} {
+	res := make([]interface{}, 0, len(pr))
+	for _, p := range pr {
+		res = append(res, map[string]interface{}{
+			"id":              p.ID,
+			"ptr":             p.Ptr,
+			"type":            p.Type,
+			"status":          p.Status,
+			"address":         p.Address,
+			"created_in":      p.CreatedIn,
+			"is_primary":      p.IsPrimary,
+			"ddos_protection": p.DdosProtection,
+			"attached_to":     flattenAttachedTo(p.AttachedTo),
+		})
 	}
-	return make([]interface{}, 0)
+	return res
 }

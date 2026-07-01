@@ -2,11 +2,10 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	clo_storage "github.com/clo-ru/cloapi-go-client/v2/services/storage"
+	"time"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"time"
 )
 
 func resourceS3UserKeys() *schema.Resource {
@@ -45,36 +44,29 @@ func resourceS3UserKeys() *schema.Resource {
 
 func resourceS3UserKeysCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	uId := d.Get("user_id").(string)
-	cli := m.(*clo_lib.ApiClient)
-	req := clo_storage.S3KeysResetRequest{
-		UserID: uId,
-	}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
+	cli := m.(*providerMeta).v3
+	keys, err := cli.GenS3UserKeys(ctx, uId)
+	if err != nil {
+		return diag.FromErr(err)
 	}
 	d.SetId(uId)
-	return setKeysResult(d, resp.Result)
+	if e := d.Set("access_key", keys.AccessKey); e != nil {
+		return diag.FromErr(e)
+	}
+	if e := d.Set("secret_key", keys.SecretKey); e != nil {
+		return diag.FromErr(e)
+	}
+	return nil
 }
 
 func resourceS3UserKeysRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	uId := d.Id()
-	cli := m.(*clo_lib.ApiClient)
-	req := clo_storage.S3KeysGetRequest{
-		UserID: uId,
+	cli := m.(*providerMeta).v3
+	accessKey, err := cli.GetS3UserAccessKey(ctx, d.Id())
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	return setKeysResult(d, resp.Result[0])
-}
-
-func setKeysResult(d *schema.ResourceData, resp clo_storage.S3Key) diag.Diagnostics {
-	if e := d.Set("access_key", resp.AccessKey); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("secret_key", resp.SecretKey); e != nil {
+	// Only the access key is returned on read; the secret key (set at create) is left as-is.
+	if e := d.Set("access_key", accessKey); e != nil {
 		return diag.FromErr(e)
 	}
 	return nil

@@ -2,13 +2,12 @@ package clo
 
 import (
 	"context"
-	"fmt"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	clo_servers "github.com/clo-ru/cloapi-go-client/v2/services/servers"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
 	"time"
+
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func dataSourceInstance() *schema.Resource {
@@ -74,85 +73,40 @@ func dataSourceInstance() *schema.Resource {
 }
 
 func dataSourceInstanceRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*clo_lib.ApiClient)
-	req := clo_servers.ServerDetailRequest{
-		ServerID: d.Get("id").(string),
-	}
-	resp, e := req.Do(ctx, cli)
-
-	if e != nil {
-		return diag.FromErr(e)
+	cli := m.(*providerMeta).v3
+	srv, err := cli.GetServer(ctx, d.Get("id").(string))
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
-	if e := d.Set("name", resp.Result.Name); e != nil {
-		return diag.FromErr(e)
+	fields := map[string]interface{}{
+		"name":         srv.Name,
+		"status":       srv.Status,
+		"project_id":   srv.Project,
+		"created_in":   srv.CreatedIn,
+		"guest_agent":  srv.GuestAgent,
+		"rescue_mode":  srv.RescueMode,
+		"flavor_ram":   srv.FlavorRam,
+		"flavor_vcpus": srv.FlavorVcpus,
+		"recipe":       srv.RecipeName,
+		"image":        srv.ImageName,
+		"disk_data":    flattenServerDisks(srv.Disks),
+		"addresses":    srv.Addresses,
 	}
-	if e := d.Set("status", resp.Result.Status); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("project_id", resp.Result.Project); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("created_in", resp.Result.CreatedIn); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("guest_agent", resp.Result.GuestAgent); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("rescue_mode", resp.Result.RescueMode); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("flavor_ram", resp.Result.Flavor.Ram); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("flavor_vcpus", resp.Result.Flavor.Vcpus); e != nil {
-		return diag.FromErr(e)
-	}
-
-	if e := d.Set("recipe", formatRecipeName(resp.Result.Recipe)); e != nil {
-		return diag.FromErr(e)
-	}
-
-	if e := d.Set("image", formatImageName(resp.Result.Image)); e != nil {
-		return diag.FromErr(e)
-	}
-
-	if e := d.Set("disk_data", formatDiskData(resp.Result.DiskData)); e != nil {
-		return diag.FromErr(e)
-	}
-
-	if e := d.Set("addresses", resp.Result.Addresses); e != nil {
-		return diag.FromErr(e)
+	for k, v := range fields {
+		if e := d.Set(k, v); e != nil {
+			return diag.FromErr(e)
+		}
 	}
 
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return nil
 }
 
-func formatImageName(image *clo_servers.ServerImage) string {
-	if image != nil && image.OperationSystem != nil {
-		return fmt.Sprint(image.OperationSystem.Distribution, " ", image.OperationSystem.Version)
+func flattenServerDisks(disks []cloapi.ServerDisk) []interface{} {
+	out := make([]interface{}, 0, len(disks))
+	for _, dd := range disks {
+		out = append(out, map[string]interface{}{"id": dd.ID, "storage_type": dd.StorageType})
 	}
-	return ""
-}
-
-func formatRecipeName(recipe *clo_servers.ServerRecipe) string {
-	if recipe != nil {
-		return recipe.Name
-	}
-	return ""
-}
-
-func formatDiskData(disks []clo_servers.ServerDisk) []interface{} {
-	var diskData []interface{}
-	ld := len(disks)
-	if ld > 0 {
-		diskData = make([]interface{}, ld)
-		for j, d := range disks {
-			diskData[j] = map[string]interface{}{"id": d.ID, "storage_type": d.StorageType}
-
-		}
-	}
-	return diskData
+	return out
 }

@@ -11,7 +11,7 @@ Use the navigation to the left to read about the available resources.
 terraform {
   required_providers {
     clo = {
-      version = "1.0.6"
+      version = "2.0.2"
       source = "clo-ru/clo"
     }
   }
@@ -35,7 +35,7 @@ resource "clo_compute_instance" "test-server" {
 ### Required
 
 - `auth_url` (String) URI for CLO API. May also be provided via CLO_API_AUTH_URL environment variable.
-- `token` (String) JWT token. Should be issued within the user area. May also be provided via CLO_API_AUTH_TOKEN environment variable.
+- `token` (String) JWT token. Should be issued in user area. May also be provided via CLO_API_AUTH_TOKEN environment variable.
 
 ## Documentation
 Please use the link below to find all available documentation for the CLO API.  

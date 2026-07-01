@@ -2,12 +2,12 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	clo_servers "github.com/clo-ru/cloapi-go-client/v2/services/servers"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
 	"time"
+
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func dataSourceInstances() *schema.Resource {
@@ -100,42 +100,33 @@ func dataSourceInstances() *schema.Resource {
 }
 
 func dataSourceInstancesRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*clo_lib.ApiClient)
-	req := clo_servers.ServerListRequest{
-		ProjectID: d.Get("project_id").(string),
+	cli := m.(*providerMeta).v3
+	servers, err := cli.ListServers(ctx, d.Get("project_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
 	}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("result", flattenInstancesResults(resp.Result)); e != nil {
+	if e := d.Set("result", flattenInstancesResults(servers)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return nil
 }
 
-func flattenInstancesResults(pr []clo_servers.Server) []interface{} {
-	lpr := len(pr)
-	if lpr > 0 {
-		res := make([]interface{}, lpr, lpr)
-		for i, p := range pr {
-
-			ri := make(map[string]interface{})
-			ri["id"] = p.ID
-			ri["name"] = p.Name
-			ri["image"] = formatImageName(p.Image)
-			ri["status"] = p.Status
-			ri["recipe_id"] = formatRecipeName(p.Recipe)
-			ri["created_in"] = p.CreatedIn
-			ri["rescue_mode"] = p.RescueMode
-			ri["flavor_ram"] = p.Flavor.Ram
-			ri["flavor_vcpus"] = p.Flavor.Vcpus
-			ri["disk_data"] = formatDiskData(p.DiskData)
-			res[i] = ri
-		}
-		return res
+func flattenInstancesResults(pr []cloapi.Server) []interface{} {
+	res := make([]interface{}, 0, len(pr))
+	for _, p := range pr {
+		res = append(res, map[string]interface{}{
+			"id":           p.ID,
+			"name":         p.Name,
+			"image":        p.ImageName,
+			"status":       p.Status,
+			"recipe_id":    p.RecipeName,
+			"created_in":   p.CreatedIn,
+			"rescue_mode":  p.RescueMode,
+			"flavor_ram":   p.FlavorRam,
+			"flavor_vcpus": p.FlavorVcpus,
+			"disk_data":    flattenServerDisks(p.Disks),
+		})
 	}
-	return make([]interface{}, 0)
+	return res
 }

@@ -2,26 +2,33 @@ package clo
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"testing"
 )
 
 const (
 	dsServerName = "serv"
-	dsImageID    = "44262267-5f2e-4802-acc1-3939f7ae7b9c"
 )
 
 func TestAccCloInstanceDataSource(t *testing.T) {
+	skipIfNotAcc(t)
+	cli, err := getTestClient()
+	if err != nil {
+		t.Error("Error get test client ", err)
+	}
+	imageID := getTestImageID(t, cli)
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { testAccCloPreCheck(t) },
 		ProviderFactories: testAccProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloInstanceDataSourceBasic(),
+				Config: testAccCloInstanceDataSourceBasic(imageID),
 			},
 			{
-				Config: testAccCloInstanceDataSourceSource(),
+				Config: testAccCloInstanceDataSourceSource(imageID),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCloInstanceDataSourceID("data.clo_compute_instance.source_1"),
 				),
@@ -45,15 +52,15 @@ func testAccCloInstanceDataSourceID(n string) resource.TestCheckFunc {
 	}
 }
 
-func testAccCloInstanceDataSourceBasic() string {
+func testAccCloInstanceDataSourceBasic(imageID string) string {
 	return fmt.Sprintf(`resource "clo_compute_instance" "%s" {
-  				project_id = "%s" 
+  				project_id = "%s"
   				name = "%s"
   				image_id = "%s"
   				flavor_ram = 4
   				flavor_vcpus = 2
   				block_device{
-   					size = 40
+   					size = 10
    					bootable=true
    					storage_type = "volume"
   				}
@@ -62,15 +69,15 @@ func testAccCloInstanceDataSourceBasic() string {
    					external=true
    					ddos_protection=false
   				}
-	}`, dsServerName, projectID, dsServerName, dsImageID)
+	}`, dsServerName, projectID, dsServerName, imageID)
 }
 
-func testAccCloInstanceDataSourceSource() string {
+func testAccCloInstanceDataSourceSource(imageID string) string {
 	return fmt.Sprintf(`
 		%s
-		
+
 		data "clo_compute_instance" "source_1" {
 			id = "${clo_compute_instance.%s.id}"
-		}`, testAccCloInstanceDataSourceBasic(), dsServerName,
+		}`, testAccCloInstanceDataSourceBasic(imageID), dsServerName,
 	)
 }

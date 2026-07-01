@@ -2,12 +2,12 @@ package clo
 
 import (
 	"context"
-	clo_lib "github.com/clo-ru/cloapi-go-client/v2/clo"
-	clo_project "github.com/clo-ru/cloapi-go-client/v2/services/project"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"strconv"
 	"time"
+
+	"github.com/clo-ru/terraform-provider-clo/v2/internal/cloapi"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func dataSourceProjects() *schema.Resource {
@@ -45,36 +45,29 @@ func dataSourceProjects() *schema.Resource {
 }
 
 func dataSourceProjectsRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var diags diag.Diagnostics
-	cli := m.(*clo_lib.ApiClient)
-	req := clo_project.ProjectListRequest{}
-	resp, e := req.Do(ctx, cli)
-	if e != nil {
-		return diag.FromErr(e)
+	cli := m.(*providerMeta).v3
+	projects, err := cli.ListProjects(ctx)
+	if err != nil {
+		return diag.FromErr(err)
 	}
-
-	if e := d.Set("result", flattenProjectResults(resp.Result)); e != nil {
+	if e := d.Set("result", flattenProjectResults(projects)); e != nil {
 		return diag.FromErr(e)
 	}
 	d.SetId(strconv.FormatInt(time.Now().Unix(), 10))
-	return diags
+	return nil
 }
 
-func flattenProjectResults(pr []clo_project.Project) []interface{} {
-	lpr := len(pr)
-	if lpr > 0 {
-		res := make([]interface{}, lpr, lpr)
-		for i, p := range pr {
-			ri := make(map[string]interface{})
-			ri["id"] = p.ID
-			ri["name"] = p.Name
-			ri["status"] = p.Status
-			ri["has_abuse"] = p.HasAbuse
-			ri["created_in"] = p.CreatedIn
-			ri["stopping_reason"] = p.StoppingReason
-			res[i] = ri
-		}
-		return res
+func flattenProjectResults(pr []cloapi.Project) []interface{} {
+	res := make([]interface{}, 0, len(pr))
+	for _, p := range pr {
+		res = append(res, map[string]interface{}{
+			"id":              p.ID,
+			"name":            p.Name,
+			"status":          p.Status,
+			"has_abuse":       p.HasAbuse,
+			"created_in":      p.CreatedIn,
+			"stopping_reason": p.StoppingReason,
+		})
 	}
-	return make([]interface{}, 0)
+	return res
 }
