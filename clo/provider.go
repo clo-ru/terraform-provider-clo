@@ -46,6 +46,7 @@ func Provider() *schema.Provider {
 			"clo_network_loadbalancer_rule": resourceLoadBalancerRule(),
 			"clo_dbaas_cluster":             resourceDbaasCluster(),
 			"clo_dbaas_database":            resourceDbaasDatabase(),
+			"clo_dbaas_backup":              resourceDbaasBackup(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"clo_projects":                   dataSourceProjects(),
@@ -71,6 +72,8 @@ func Provider() *schema.Provider {
 			"clo_dbaas_databases":            dataSourceDbaasDatabases(),
 			"clo_dbaas_nodes":                dataSourceDbaasNodes(),
 			"clo_dbaas_datastores":           dataSourceDbaasDatastores(),
+			"clo_dbaas_backups":              dataSourceDbaasBackups(),
+			"clo_dbaas_backup_download":      dataSourceDbaasBackupDownload(),
 		},
 	}
 }

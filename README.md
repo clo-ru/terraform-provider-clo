@@ -38,7 +38,7 @@ Supported Resources
 - **Compute**: `clo_compute_instance`, `clo_compute_keypair`
 - **Disks**: `clo_disks_volume`, `clo_disks_volume_attach`
 - **Network**: `clo_network_ip`, `clo_network_ip_attach`, `clo_network_vrouter`, `clo_network_loadbalancer`, `clo_network_loadbalancer_rule`
-- **Database**: `clo_dbaas_cluster`, `clo_dbaas_database`
+- **Database**: `clo_dbaas_cluster`, `clo_dbaas_database`, `clo_dbaas_backup`
 - **Storage**: `clo_storage_s3_user`, `clo_storage_s3_user_keys`
 
 Data Sources
@@ -48,7 +48,7 @@ Data Sources
 - **Compute**: `clo_compute_instance`, `clo_compute_instances`, `clo_compute_keypair`, `clo_compute_keypairs`
 - **Disks**: `clo_disks_volume`, `clo_disks_volumes`
 - **Network**: `clo_network_ip`, `clo_network_ips`, `clo_network_vrouters`, `clo_network_loadbalancers`, `clo_network_loadbalancer_rules`
-- **Database**: `clo_dbaas_clusters`, `clo_dbaas_databases`, `clo_dbaas_nodes`, `clo_dbaas_datastores`
+- **Database**: `clo_dbaas_clusters`, `clo_dbaas_databases`, `clo_dbaas_nodes`, `clo_dbaas_datastores`, `clo_dbaas_backups`, `clo_dbaas_backup_download`
 - **Storage**: `clo_storage_s3_user`, `clo_storage_s3_users`, `clo_storage_s3_user_keys`
 
 Building The Provider
