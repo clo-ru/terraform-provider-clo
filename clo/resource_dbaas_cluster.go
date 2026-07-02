@@ -126,6 +126,12 @@ func resourceDbaasCluster() *schema.Resource {
 				Optional:    true,
 				Default:     true,
 			},
+			"backup_enabled": {
+				Description: "Whether scheduled backups are enabled for the cluster. Defaults to true.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     true,
+			},
 			"id": {
 				Description: "ID of the cluster",
 				Type:        schema.TypeString,
@@ -217,6 +223,13 @@ func resourceDbaasClusterCreate(ctx context.Context, d *schema.ResourceData, m i
 		}
 	}
 
+	// Scheduled backups are on by default at creation; only act if the user asked to disable them.
+	if !d.Get("backup_enabled").(bool) {
+		if err := cli.DisableClusterBackup(ctx, id); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
 	return resourceDbaasClusterRead(ctx, d, m)
 }
 
@@ -247,6 +260,7 @@ func resourceDbaasClusterRead(ctx context.Context, d *schema.ResourceData, m int
 		"external_address":  c.ExternalAddress,
 		"internal_address":  c.InternalAddress,
 		"backup_hour":       c.BackupHour,
+		"backup_enabled":    c.BackupEnabled,
 		"created_in":        c.CreatedIn,
 		"enabled":           c.SwitchStatus == switchOnCluster,
 		"flavor":            flattenClusterFlavor(c),
@@ -309,6 +323,18 @@ func resourceDbaasClusterUpdate(ctx context.Context, d *schema.ResourceData, m i
 		}
 		if err := waitClusterEnabled(ctx, id, cli, enabled, d.Timeout(schema.TimeoutUpdate)); err != nil {
 			return diag.FromErr(err)
+		}
+	}
+
+	if d.HasChange("backup_enabled") {
+		if d.Get("backup_enabled").(bool) {
+			if err := cli.EnableClusterBackup(ctx, id); err != nil {
+				return diag.FromErr(err)
+			}
+		} else {
+			if err := cli.DisableClusterBackup(ctx, id); err != nil {
+				return diag.FromErr(err)
+			}
 		}
 	}
 

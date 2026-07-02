@@ -35,11 +35,11 @@ resource "clo_dbaas_database" "app" {
 
 ### Optional
 
+- `backup_enabled` (Boolean) Whether scheduled backups are enabled for the database. Defaults to false.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 
 ### Read-Only
 
-- `backup_enabled` (Boolean) Whether scheduled backups are enabled for the database
 - `created_in` (String) Timestamp the database was created
 - `id` (String) ID of the database
 - `project` (String) ID of the project the database belongs to

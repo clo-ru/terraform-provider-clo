@@ -64,6 +64,7 @@ resource "clo_dbaas_cluster" "cluster_2" {
 ### Optional
 
 - `address` (Block List, Max: 1) Address to attach to the cluster. If omitted, one is allocated automatically (see [below for nested schema](#nestedblock--address))
+- `backup_enabled` (Boolean) Whether scheduled backups are enabled for the cluster. Defaults to true.
 - `datastore_id` (String) ID of the datastore (database engine + version) for the cluster. Resolve it with the `clo_dbaas_datastores` data source.
 - `enabled` (Boolean) Whether the cluster is powered on. Defaults to true.
 - `restore_from_backup_id` (String) ID of a backup to restore into the new cluster. Mutually exclusive with an initial database.

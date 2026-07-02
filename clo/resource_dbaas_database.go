@@ -73,9 +73,10 @@ func resourceDbaasDatabase() *schema.Resource {
 				Computed:    true,
 			},
 			"backup_enabled": {
-				Description: "Whether scheduled backups are enabled for the database",
+				Description: "Whether scheduled backups are enabled for the database. Defaults to false.",
 				Type:        schema.TypeBool,
-				Computed:    true,
+				Optional:    true,
+				Default:     false,
 			},
 			"created_in": {
 				Description: "Timestamp the database was created",
@@ -101,6 +102,14 @@ func resourceDbaasDatabaseCreate(ctx context.Context, d *schema.ResourceData, m 
 	if err := waitDatabaseState(ctx, id, cli, []string{buildDatabase}, []string{readyDatabase}, d.Timeout(schema.TimeoutCreate)); err != nil {
 		return diag.FromErr(err)
 	}
+
+	// Scheduled backups are off by default at creation; only act if the user asked to enable them.
+	if d.Get("backup_enabled").(bool) {
+		if err := cli.EnableDatabaseBackup(ctx, id); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
 	return resourceDbaasDatabaseRead(ctx, d, m)
 }
 
@@ -139,6 +148,17 @@ func resourceDbaasDatabaseUpdate(ctx context.Context, d *schema.ResourceData, m 
 	if d.HasChange("admin_password") {
 		if err := cli.RestoreAdminPassword(ctx, d.Id(), d.Get("admin_password").(string)); err != nil {
 			return diag.FromErr(err)
+		}
+	}
+	if d.HasChange("backup_enabled") {
+		if d.Get("backup_enabled").(bool) {
+			if err := cli.EnableDatabaseBackup(ctx, d.Id()); err != nil {
+				return diag.FromErr(err)
+			}
+		} else {
+			if err := cli.DisableDatabaseBackup(ctx, d.Id()); err != nil {
+				return diag.FromErr(err)
+			}
 		}
 	}
 	return resourceDbaasDatabaseRead(ctx, d, m)
