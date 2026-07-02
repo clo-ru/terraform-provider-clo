@@ -35,7 +35,7 @@ provider "clo" {
 Supported Resources
 -------------------
 
-- **Compute**: `clo_compute_instance`, `clo_compute_keypair`
+- **Compute**: `clo_compute_instance`, `clo_compute_keypair`, `clo_compute_snapshot`, `clo_compute_snapshot_restore`
 - **Disks**: `clo_disks_volume`, `clo_disks_volume_attach`
 - **Network**: `clo_network_ip`, `clo_network_ip_attach`, `clo_network_vrouter`, `clo_network_loadbalancer`, `clo_network_loadbalancer_rule`
 - **Database**: `clo_dbaas_cluster`, `clo_dbaas_database`, `clo_dbaas_backup`
@@ -45,7 +45,7 @@ Data Sources
 ------------
 
 - **Project**: `clo_projects`, `clo_project_image`, `clo_project_images`, `clo_project_recipe`, `clo_project_recipes`
-- **Compute**: `clo_compute_instance`, `clo_compute_instances`, `clo_compute_keypair`, `clo_compute_keypairs`
+- **Compute**: `clo_compute_instance`, `clo_compute_instances`, `clo_compute_keypair`, `clo_compute_keypairs`, `clo_compute_snapshots`
 - **Disks**: `clo_disks_volume`, `clo_disks_volumes`
 - **Network**: `clo_network_ip`, `clo_network_ips`, `clo_network_vrouters`, `clo_network_loadbalancers`, `clo_network_loadbalancer_rules`
 - **Database**: `clo_dbaas_clusters`, `clo_dbaas_databases`, `clo_dbaas_nodes`, `clo_dbaas_datastores`, `clo_dbaas_backups`, `clo_dbaas_backup_download`
