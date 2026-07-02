@@ -268,3 +268,35 @@ func destroyTestDbaasCluster(id string, cli *cloapi.Client) error {
 	}
 	return waitClusterDeleted(context.Background(), id, cli, 20*time.Minute)
 }
+
+// Snapshot
+
+func buildTestSnapshot(cli *cloapi.Client, t *testing.T) (string, error) {
+	serverID, err := buildTestServer(cli, t)
+	if err != nil {
+		return "", err
+	}
+	id, err := cli.CreateSnapshot(context.Background(), serverID, "test_snapshot")
+	if err != nil {
+		return "", err
+	}
+
+	t.Cleanup(func() {
+		t.Logf("Cleanup test snapshot %s", id)
+		if err := destroyTestSnapshot(id, cli); err != nil {
+			t.Log("Error on cleanup snapshot ", err)
+		}
+	})
+
+	if err := waitSnapshotState(context.Background(), id, cli, []string{creatingSnapshot, processingSnapshot}, []string{activeSnapshot}, 30*time.Minute); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func destroyTestSnapshot(id string, cli *cloapi.Client) error {
+	if err := cli.DeleteSnapshot(context.Background(), id); err != nil {
+		return err
+	}
+	return waitSnapshotDeleted(context.Background(), id, cli, 20*time.Minute)
+}

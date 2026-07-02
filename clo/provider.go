@@ -34,6 +34,8 @@ func Provider() *schema.Provider {
 		ConfigureContextFunc: configureProvider,
 		ResourcesMap: map[string]*schema.Resource{
 			"clo_compute_instance":          resourceInstance(),
+			"clo_compute_snapshot":          resourceSnapshot(),
+			"clo_compute_snapshot_restore":  resourceSnapshotRestore(),
 			"clo_network_ip":                resourceIp(),
 			"clo_network_ip_attach":         resourceIpAttach(),
 			"clo_disks_volume":              resourceVolume(),
@@ -62,6 +64,7 @@ func Provider() *schema.Provider {
 			"clo_disks_volumes":              dataSourceVolumes(),
 			"clo_compute_instance":           dataSourceInstance(),
 			"clo_compute_instances":          dataSourceInstances(),
+			"clo_compute_snapshots":          dataSourceSnapshots(),
 			"clo_storage_s3_user":            dataSourceS3User(),
 			"clo_storage_s3_users":           dataSourceS3Users(),
 			"clo_storage_s3_user_keys":       dataSourceS3Keys(),
