@@ -2,16 +2,16 @@
 terraform {
   required_providers {
     clo = {
-      version = "2.1.0"
-      source = "clo-ru/clo"
+      version = "2.3.0"
+      source  = "clo-ru/clo"
     }
   }
 }
 
 # Configure the provider
 provider "clo" {
- auth_url = "https://api.clo.ru"
- token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9."
+  auth_url = "https://api.clo.ru"
+  token    = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9."
 }
 
 # Create an instance

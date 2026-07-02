@@ -219,3 +219,52 @@ func buildTestKeypair(cli *cloapi.Client, t *testing.T) (string, error) {
 func destroyTestKeypair(id string, cli *cloapi.Client) error {
 	return cli.DeleteKeypair(context.Background(), id)
 }
+
+// dbaas cluster
+
+// getTestDatastore resolves a usable dbaas datastore (engine + version) for the
+// test project at runtime instead of hard-coding an ID. Datastores are
+// environment-specific, so the test is skipped when none is available.
+func getTestDatastore(t *testing.T, cli *cloapi.Client) string {
+	t.Helper()
+	datastores, err := cli.ListDatastores(context.Background(), getTestProject())
+	if err != nil {
+		t.Fatalf("list datastores: %v", err)
+	}
+	if len(datastores) == 0 {
+		t.Skip("no dbaas datastore available in the test project; skipping dbaas test")
+	}
+	return datastores[0].ID
+}
+
+func buildTestDbaasCluster(cli *cloapi.Client, t *testing.T) (string, error) {
+	id, err := cli.CreateCluster(context.Background(), getTestProject(), cloapi.ClusterCreateParams{
+		Name:        "test_cluster",
+		DatastoreID: getTestDatastore(t, cli),
+		FlavorVcpus: 1,
+		FlavorRam:   2,
+		StorageSize: 10,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	t.Cleanup(func() {
+		t.Logf("Cleanup test dbaas cluster %s", id)
+		if err := destroyTestDbaasCluster(id, cli); err != nil {
+			t.Log("Error on cleanup dbaas cluster ", err)
+		}
+	})
+
+	if err := waitClusterState(context.Background(), id, cli, []string{creatingCluster, restoreCluster, startingCluster}, []string{activeCluster}, 40*time.Minute); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func destroyTestDbaasCluster(id string, cli *cloapi.Client) error {
+	if err := cli.DeleteCluster(context.Background(), id); err != nil {
+		return err
+	}
+	return waitClusterDeleted(context.Background(), id, cli, 20*time.Minute)
+}

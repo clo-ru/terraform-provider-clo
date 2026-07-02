@@ -14,7 +14,7 @@ Fetches the data of an instance with a provided ID
 
 ```terraform
 data "clo_compute_instance" "myserv" {
- id = "1e8ff0f7-0b8c-4ec5-a0a4-e30cea0db286"
+  id = "1e8ff0f7-0b8c-4ec5-a0a4-e30cea0db286"
 }
 ```
 
