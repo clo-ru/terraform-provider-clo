@@ -34,6 +34,7 @@ func Provider() *schema.Provider {
 		ConfigureContextFunc: configureProvider,
 		ResourcesMap: map[string]*schema.Resource{
 			"clo_compute_instance":          resourceInstance(),
+			"clo_compute_instance_power":    resourceInstancePower(),
 			"clo_compute_snapshot":          resourceSnapshot(),
 			"clo_compute_snapshot_restore":  resourceSnapshotRestore(),
 			"clo_network_ip":                resourceIp(),

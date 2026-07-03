@@ -1,5 +1,7 @@
 resource "clo_compute_instance" "myserv" {
-  project_id   = "e9ff0f7-0b8c-4ec5-a0a4-e30ce0db287"
+  project_id = "e9ff0f7-0b8c-4ec5-a0a4-e30ce0db287"
+  # name can be changed to rename the instance in place. Power is managed
+  # separately with the clo_compute_instance_power resource.
   name         = "my_server"
   flavor_ram   = 4
   flavor_vcpus = 2
