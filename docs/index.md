@@ -17,7 +17,7 @@ description: |-
 terraform {
   required_providers {
     clo = {
-      version = "2.7.0"
+      version = "2.8.0"
       source  = "clo-ru/clo"
     }
   }
