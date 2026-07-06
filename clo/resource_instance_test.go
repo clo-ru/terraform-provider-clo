@@ -93,6 +93,63 @@ func testAccCloInstanceWithKeypairConf(imageID, keypair string) string {
 	}`, serverName, os.Getenv("CLO_API_PROJECT_ID"), serverName, imageID, keypair)
 }
 
+// TestAccCloInstance_rename renames the instance in place via ServerUpdate.
+func TestAccCloInstance_rename(t *testing.T) {
+	skipIfNotAcc(t)
+	cli, err := getTestClient()
+	if err != nil {
+		t.Error("Error get test client ", err)
+	}
+	imageID := getTestImageID(t, cli)
+
+	server := new(cloapi.Server)
+	addr := fmt.Sprintf("clo_compute_instance.%s", serverName)
+	resource.Test(t, resource.TestCase{
+		PreCheck:          func() { testAccCloPreCheck(t) },
+		ProviderFactories: testAccProviders,
+		CheckDestroy:      testAccCheckInstanceDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloInstanceNamedConf(imageID, "serv"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckInstanceExists(addr, server),
+					resource.TestCheckResourceAttr(addr, "name", "serv"),
+					resource.TestCheckResourceAttrSet(addr, "switch_status"),
+				),
+			},
+			{
+				// Rename in place.
+				Config: testAccCloInstanceNamedConf(imageID, "serv-renamed"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckInstanceExists(addr, server),
+					resource.TestCheckResourceAttr(addr, "name", "serv-renamed"),
+				),
+			},
+		},
+	})
+}
+
+func testAccCloInstanceNamedConf(imageID, name string) string {
+	return fmt.Sprintf(
+		`resource "clo_compute_instance" "%s" {
+  				project_id = "%s"
+  				name = "%s"
+  				image_id = "%s"
+  				flavor_ram = 4
+  				flavor_vcpus = 2
+  				block_device{
+   					size = 10
+   					bootable=true
+   					storage_type = "volume"
+  				}
+  				addresses{
+   					version = 4
+   					external=true
+   					ddos_protection=false
+  				}
+	}`, serverName, os.Getenv("CLO_API_PROJECT_ID"), name, imageID)
+}
+
 func testAccCloInstanceBasicConf(imageID string) string {
 	return fmt.Sprintf(
 		`resource "clo_compute_instance" "%s" {

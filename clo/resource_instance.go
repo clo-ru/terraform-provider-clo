@@ -14,9 +14,13 @@ const (
 	activeInstance   = "ACTIVE"
 	stoppedInstance  = "STOPPED"
 	creatingInstance = "BUILDING"
+	startingInstance = "STARTING"
+	stoppingInstance = "STOPPING"
 	resizingInstance = "RESIZING"
 	deletingInstance = "DELETING"
 	deletedInstance  = "DELETED"
+
+	switchOnServer = "ON"
 )
 
 func resourceInstance() *schema.Resource {
@@ -39,10 +43,9 @@ func resourceInstance() *schema.Resource {
 				Required:    true,
 			},
 			"name": {
-				Description: "Name of the new instance",
+				Description: "Name of the instance. Changing it renames the instance in place.",
 				Type:        schema.TypeString,
 				Required:    true,
-				ForceNew:    true,
 			},
 			"password": {
 				Description: "Password for the new instance",
@@ -167,6 +170,9 @@ func resourceInstance() *schema.Resource {
 			"status": {
 				Description: "Current status of the instance",
 				Type:        schema.TypeString, Computed: true},
+			"switch_status": {
+				Description: "Power switch position reported by the API (`ON`/`OFF`)",
+				Type:        schema.TypeString, Computed: true},
 			"created_in": {
 				Description: "Timestamp the instance was created",
 				Type:        schema.TypeString, Computed: true},
@@ -201,6 +207,12 @@ func resourceInstanceUpdate(ctx context.Context, d *schema.ResourceData, m inter
 	cli := m.(*providerMeta).v3
 	servID := d.Id()
 
+	if d.HasChange("name") {
+		if err := cli.RenameServer(ctx, servID, d.Get("name").(string)); err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
 	if d.HasChanges("flavor_ram", "flavor_vcpus") {
 		_, ram := d.GetChange("flavor_ram")
 		_, vcpus := d.GetChange("flavor_vcpus")
@@ -215,24 +227,32 @@ func resourceInstanceUpdate(ctx context.Context, d *schema.ResourceData, m inter
 			return diag.FromErr(err)
 		}
 	}
-	return nil
+
+	return resourceInstanceRead(ctx, d, m)
 }
 
 func resourceInstanceRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	cli := m.(*providerMeta).v3
 	srv, err := cli.GetServer(ctx, d.Id())
+	if cloapi.IsNotFound(err) {
+		d.SetId("")
+		return nil
+	}
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	if e := d.Set("id", srv.ID); e != nil {
-		return diag.FromErr(e)
+	fields := map[string]interface{}{
+		"id":            srv.ID,
+		"name":          srv.Name,
+		"status":        srv.Status,
+		"switch_status": srv.SwitchStatus,
+		"created_in":    srv.CreatedIn,
 	}
-	if e := d.Set("created_in", srv.CreatedIn); e != nil {
-		return diag.FromErr(e)
-	}
-	if e := d.Set("status", srv.Status); e != nil {
-		return diag.FromErr(e)
+	for k, val := range fields {
+		if e := d.Set(k, val); e != nil {
+			return diag.FromErr(e)
+		}
 	}
 	return nil
 }
@@ -394,6 +414,16 @@ func waitInstanceState(ctx context.Context, serverId string, cli *cloapi.Client,
 		}
 		return srv, srv.Status, nil
 	})
+}
+
+// waitInstanceEnabled waits for the instance to settle running (ACTIVE) or
+// stopped (STOPPED) after a Start/Stop. Failure statuses are not in the pending
+// set, so StateChangeConf surfaces them as a failure instead of hanging.
+func waitInstanceEnabled(ctx context.Context, id string, cli *cloapi.Client, enabled bool, timeout time.Duration) error {
+	if enabled {
+		return waitInstanceState(ctx, id, cli, []string{stoppedInstance, startingInstance}, []string{activeInstance}, timeout)
+	}
+	return waitInstanceState(ctx, id, cli, []string{activeInstance, stoppingInstance}, []string{stoppedInstance}, timeout)
 }
 
 func resizeServer(ctx context.Context, id string, vcpus int, ram int, cli *cloapi.Client, d *schema.ResourceData) error {

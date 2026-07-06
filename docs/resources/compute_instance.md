@@ -14,7 +14,9 @@ Project compute instance
 
 ```terraform
 resource "clo_compute_instance" "myserv" {
-  project_id   = "e9ff0f7-0b8c-4ec5-a0a4-e30ce0db287"
+  project_id = "e9ff0f7-0b8c-4ec5-a0a4-e30ce0db287"
+  # name can be changed to rename the instance in place. Power is managed
+  # separately with the clo_compute_instance_power resource.
   name         = "my_server"
   flavor_ram   = 4
   flavor_vcpus = 2
@@ -41,7 +43,7 @@ resource "clo_compute_instance" "myserv" {
 - `flavor_ram` (Number) Amount of RAM of the new instance
 - `flavor_vcpus` (Number) Number of VCPU of the new instance
 - `image_id` (String) ID of the image that will be using
-- `name` (String) Name of the new instance
+- `name` (String) Name of the instance. Changing it renames the instance in place.
 - `project_id` (String) ID of the project where the instance should be created
 
 ### Optional
@@ -58,6 +60,7 @@ resource "clo_compute_instance" "myserv" {
 - `created_in` (String) Timestamp the instance was created
 - `id` (String) ID of the created instance
 - `status` (String) Current status of the instance
+- `switch_status` (String) Power switch position reported by the API (`ON`/`OFF`)
 
 <a id="nestedblock--block_device"></a>
 ### Nested Schema for `block_device`

@@ -8,21 +8,23 @@ import (
 	gen "github.com/clo-ru/cloapi-go-client/v3"
 )
 
-// Server is the provider-facing view of a compute instance.
+// Server is the provider-facing view of a compute instance. Status is the
+// lifecycle state; SwitchStatus is the ON/OFF power state toggled by Start/Stop.
 type Server struct {
-	ID          string
-	Name        string
-	Status      string
-	Project     string
-	CreatedIn   string
-	RescueMode  string
-	GuestAgent  bool
-	FlavorRam   int
-	FlavorVcpus int
-	ImageName   string // "<distribution> <version>", empty if no image
-	RecipeName  string
-	Addresses   []string
-	Disks       []ServerDisk
+	ID           string
+	Name         string
+	Status       string
+	SwitchStatus string
+	Project      string
+	CreatedIn    string
+	RescueMode   string
+	GuestAgent   bool
+	FlavorRam    int
+	FlavorVcpus  int
+	ImageName    string // "<distribution> <version>", empty if no image
+	RecipeName   string
+	Addresses    []string
+	Disks        []ServerDisk
 }
 
 // ServerDisk is one disk attached to a server.
@@ -33,13 +35,14 @@ type ServerDisk struct {
 
 func serverFromSchema(r *gen.ServerSchema) Server {
 	s := Server{
-		ID:         r.Id,
-		Name:       r.Name,
-		Status:     r.Status,
-		Project:    r.Project,
-		RescueMode: r.RescueMode,
-		GuestAgent: r.GuestAgent,
-		CreatedIn:  r.CreatedIn.Format(time.RFC3339),
+		ID:           r.Id,
+		Name:         r.Name,
+		Status:       r.Status,
+		SwitchStatus: r.SwitchStatus,
+		Project:      r.Project,
+		RescueMode:   r.RescueMode,
+		GuestAgent:   r.GuestAgent,
+		CreatedIn:    r.CreatedIn.Format(time.RFC3339),
 	}
 	if r.Flavor != nil {
 		s.FlavorRam = r.Flavor.Ram
@@ -215,6 +218,24 @@ func (c *Client) ResizeServer(ctx context.Context, id string, ram, vcpus int) er
 // ChangeServerPassword sets the instance's password.
 func (c *Client) ChangeServerPassword(ctx context.Context, id, password string) error {
 	_, err := c.gen.ServerChangePasswordWithResponse(ctx, id, gen.ServerChangePasswordJSONRequestBody{Password: password})
+	return err
+}
+
+// RenameServer changes the instance's name.
+func (c *Client) RenameServer(ctx context.Context, id, name string) error {
+	_, err := c.gen.ServerUpdateWithResponse(ctx, id, gen.ServerUpdateJSONRequestBody{Name: &name})
+	return err
+}
+
+// StartServer powers the instance on.
+func (c *Client) StartServer(ctx context.Context, id string) error {
+	_, err := c.gen.ServerStartWithResponse(ctx, id)
+	return err
+}
+
+// StopServer powers the instance off.
+func (c *Client) StopServer(ctx context.Context, id string) error {
+	_, err := c.gen.ServerStopWithResponse(ctx, id)
 	return err
 }
 

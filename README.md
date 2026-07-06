@@ -35,7 +35,7 @@ provider "clo" {
 Supported Resources
 -------------------
 
-- **Compute**: `clo_compute_instance`, `clo_compute_keypair`, `clo_compute_snapshot`, `clo_compute_snapshot_restore`
+- **Compute**: `clo_compute_instance`, `clo_compute_instance_power`, `clo_compute_keypair`, `clo_compute_snapshot`, `clo_compute_snapshot_restore`
 - **Disks**: `clo_disks_volume`, `clo_disks_volume_attach`
 - **Network**: `clo_network_ip`, `clo_network_ip_attach`, `clo_network_vrouter`, `clo_network_loadbalancer`, `clo_network_loadbalancer_rule`
 - **Database**: `clo_dbaas_cluster`, `clo_dbaas_database`, `clo_dbaas_backup`
