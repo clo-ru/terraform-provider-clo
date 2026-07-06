@@ -73,6 +73,7 @@ func Provider() *schema.Provider {
 			"clo_network_loadbalancers":      dataSourceLoadBalancers(),
 			"clo_network_loadbalancer_rules": dataSourceLoadBalancerRules(),
 			"clo_dbaas_clusters":             dataSourceDbaasClusters(),
+			"clo_dbaas_cluster_config":       dataSourceDbaasClusterConfig(),
 			"clo_dbaas_databases":            dataSourceDbaasDatabases(),
 			"clo_dbaas_nodes":                dataSourceDbaasNodes(),
 			"clo_dbaas_datastores":           dataSourceDbaasDatastores(),

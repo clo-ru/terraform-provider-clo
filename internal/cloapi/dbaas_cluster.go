@@ -42,6 +42,17 @@ type Datastore struct {
 	Version string
 }
 
+// ClusterConfig is the provider-facing view of a cluster's tunable
+// configuration. Each map holds parameter name → value: Current is the live
+// config, Default the datastore/flavor default, LastStable the last known-good
+// config. Values are heterogeneous (numbers, strings, bools, and occasionally
+// multi-value lists), so they are surfaced to callers as raw interface{}.
+type ClusterConfig struct {
+	Current    map[string]interface{}
+	Default    map[string]interface{}
+	LastStable map[string]interface{}
+}
+
 // Node is a single cluster member (database instance).
 type Node struct {
 	ID        string
@@ -206,6 +217,24 @@ func (c *Client) ListDatastores(ctx context.Context, projectID string) ([]Datast
 		out = append(out, datastoreFromSchema(&items[i]))
 	}
 	return out, nil
+}
+
+// GetClusterConfig returns the cluster's current, default and last-stable
+// configuration parameter sets.
+func (c *Client) GetClusterConfig(ctx context.Context, clusterID string) (*ClusterConfig, error) {
+	resp, err := c.gen.DbaasClusterConfigWithResponse(ctx, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	if resp.OK == nil || resp.OK.Result == nil {
+		return nil, errors.New("cloapi: empty dbaas cluster config response")
+	}
+	r := resp.OK.Result
+	return &ClusterConfig{
+		Current:    r.Current,
+		Default:    r.Default,
+		LastStable: r.LastStable,
+	}, nil
 }
 
 // ListNodes returns the cluster's member nodes.
